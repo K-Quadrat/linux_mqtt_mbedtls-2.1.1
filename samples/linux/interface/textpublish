@@ -1,0 +1,102 @@
+    // loop and publish
+	while((NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc)
+		  && (publishCount > 0 || infinitePublishFlag)) {
+
+		//Max time the yield function will wait for read messages
+		rc = aws_iot_mqtt_yield(&mqttClient, 100);
+		if(NETWORK_ATTEMPTING_RECONNECT == rc) {
+			// If the client is attempting to reconnect we will skip the rest of the loop.
+			continue;
+		}
+
+		sleep(1);
+
+        sprintf(cPayload,"%s%d%s", "{\"Firma\": \"Hardkernel\", \"Sensor\": \"Odroid-C2\", \"Messwert\": \"", i++, "\"}");
+		msg.payloadLen = strlen(cPayload);
+        printf("%s %s%s %zu %s\n", "Payload length topic", topicHardwareInfo, ":", strlen(cPayload), "Byte");
+		rc = aws_iot_mqtt_publish(&mqttClient, topicHardwareInfo, topicHardwareInfoLen, &msg);
+
+
+        sprintf(cPayload,"%s", getMemInfo(memInfo));
+		msg.payloadLen = strlen(cPayload);
+        printf("%s %s%s %zu %s\n", "Payload length topic", topicMemInfo, ":", strlen(cPayload), "Byte");
+        rc = aws_iot_mqtt_publish(&mqttClient, topicMemInfo, topicMemInfoLen, &msg);
+
+        printf("%s %zu %s\n\n", "Max payload length each topic:", sizeof(cPayload), "Byte");
+
+
+        /*
+        if (rc == MQTT_REQUEST_TIMEOUT_ERROR) {
+			IOT_WARN("QOS1 publish ack not received.\n");
+			rc = SUCCESS;
+		}*/
+        /**
+		if(publishCount > 0) {
+			publishCount--;
+		}*/
+
+	}
+
+	if(SUCCESS != rc) {
+		IOT_ERROR("An error occurred in the loop.\n");
+	} else {
+		IOT_INFO("Publish done\n");
+	}
+
+
+
+
+
+
+
+
+
+    // loop and publish
+	while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
+
+        rc = aws_iot_shadow_yield(&shadowClient, 200);
+        if(NETWORK_ATTEMPTING_RECONNECT == rc) {
+            sleep(1);
+            // If the client is attempting to reconnect we will skip the rest of the loop.
+            continue;
+        }
+        IOT_INFO("\n=======================================================================================\n");
+        IOT_INFO("On Device: window state %s", windowOpen ? "true" : "false");
+        simulateRoomTemperature(&temperature);
+
+        rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+        if(SUCCESS == rc) {
+            rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 2, &temperatureHandler,
+                                             &windowActuator);
+            if(SUCCESS == rc) {
+                rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+                if(SUCCESS == rc) {
+                    IOT_INFO("Update Shadow: %s", JsonDocumentBuffer);
+                    rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer,
+                                               ShadowUpdateStatusCallback, NULL, 4, true);
+
+                }
+            }
+        }
+        IOT_INFO("*****************************************************************************************\n");
+        sleep(1);
+
+    }
+
+    if(SUCCESS != rc) {
+        IOT_ERROR("An error occurred in the loop %d", rc);
+    }
+
+    IOT_INFO("Disconnecting");
+    rc = aws_iot_shadow_disconnect(&mqttClient);
+
+    if(SUCCESS != rc) {
+        IOT_ERROR("Disconnect error %d", rc);
+    }
+
+
+Erste Messung aktivieren
+Activate the first measurement
+
+Erste Messung aktiviert
+First measurement activated

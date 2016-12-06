@@ -15,13 +15,15 @@
 #include "aws_iot_shadow_interface.h"
 
 
+AWS_IoT_Client mqttClient;
+AWS_IoT_Client shadowClient;
 
 
 #define ROOMTEMPERATURE_UPPERLIMIT 32.0f
 #define ROOMTEMPERATURE_LOWERLIMIT 25.0f
 #define STARTING_ROOMTEMPERATURE ROOMTEMPERATURE_LOWERLIMIT
 
-#define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 200
+#define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 500
 uint8_t numPubs = 5;
 
 static void simulateRoomTemperature(float *pRoomTemperature) {
@@ -52,15 +54,85 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
     }
 }
 
-void windowActuate_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
+
+/**
+ * @brief CallbackHandler for Subscribe to a topic
+ */
+void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
+                                    IoT_Publish_Message_Params *params, void *pData) {
+    IOT_UNUSED(pData);
+    IOT_UNUSED(pClient);
+    IOT_INFO("Subscribe callback");
+    IOT_INFO("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, params->payload);
+}
+
+
+/**
+ * @brief Callback handler for delta changes
+ */
+void onlineState_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
     IOT_UNUSED(pJsonString);
     IOT_UNUSED(JsonStringDataLen);
+    IoT_Error_t rc = FAILURE;
 
     if(pContext != NULL) {
-        IOT_INFO("Delta - Window state changed to %d", *(bool *) (pContext->pData));
+        IOT_INFO("Online state changed to %d", *(bool *) (pContext->pData));
     }
 }
 
+void firstMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
+    IOT_UNUSED(pJsonString);
+    IOT_UNUSED(JsonStringDataLen);
+    IoT_Error_t rc = FAILURE;
+
+    if(pContext != NULL) {
+        IOT_INFO("Activating the first measurement! State changed to %d", *(bool *) (pContext->pData));
+
+        // obtain measurement settings on channel one
+        IOT_INFO("Subscribing get/measurement/settings/channel1");
+        rc = aws_iot_mqtt_subscribe(&mqttClient, "get/measurement/settings/channel1", 33, QOS0, iot_subscribe_callback_handler, NULL);
+
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error subscribing : %d ", rc);
+        }
+    }
+}
+
+void secondMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
+    IOT_UNUSED(pJsonString);
+    IOT_UNUSED(JsonStringDataLen);
+    IoT_Error_t rc = FAILURE;
+
+    if(pContext != NULL) {
+        IOT_INFO("Activating the second measurement! State changed to %d", *(bool *) (pContext->pData));
+
+        // obtain measurement settings on channel two
+        IOT_INFO("Subscribing get/measurement/settings/channel2");
+        rc = aws_iot_mqtt_subscribe(&mqttClient, "get/measurement/settings/channel2", 33, QOS0, iot_subscribe_callback_handler, NULL);
+
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error subscribing : %d ", rc);
+        }
+    }
+}
+
+void thirdMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
+    IOT_UNUSED(pJsonString);
+    IOT_UNUSED(JsonStringDataLen);
+    IoT_Error_t rc = FAILURE;
+
+    if(pContext != NULL) {
+        IOT_INFO("Activating the third measurement! State changed to %d", *(bool *) (pContext->pData));
+
+        // obtain measurement settings on channel three
+        IOT_INFO("Subscribing get/measurement/settings/channel3");
+        rc = aws_iot_mqtt_subscribe(&mqttClient, "get/measurement/settings/channel3", 33, QOS0, iot_subscribe_callback_handler, NULL);
+
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error subscribing : %d ", rc);
+        }
+    }
+}
 
 
 /**
@@ -159,18 +231,6 @@ uint32_t port = AWS_IOT_MQTT_PORT;
 uint32_t publishCount = 0; // publishCount wird nicht gebraucht
 
 
-/**
- * @brief CallbackHandler for Subscribe to a topic
- */
-/**
-void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
-									IoT_Publish_Message_Params *params, void *pData) {
-	IOT_UNUSED(pData);
-	IOT_UNUSED(pClient);
-	IOT_INFO("Subscribe callback");
-	IOT_INFO("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, params->payload);
-}*/
-
 void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
 	IOT_WARN("MQTT Disconnect");
 	IoT_Error_t rc = FAILURE;
@@ -257,8 +317,10 @@ int main(int argc, char **argv) {
 
 	IoT_Error_t rc = FAILURE;
 
+/*
 	AWS_IoT_Client mqttClient;
     AWS_IoT_Client shadowClient;
+*/
 	IoT_Client_Init_Params clientInitParams = iotClientInitParamsDefault; // Defining a type for MQTT initialization parameters
 	IoT_Client_Connect_Params clientConnectParams = iotClientConnectParamsDefault; // Defining a type for MQTT connection parameters
     ShadowInitParameters_t shadowInitParams = ShadowInitParametersDefault; // Defining a type for shadow initialization parameters
@@ -297,12 +359,33 @@ int main(int argc, char **argv) {
     char *pJsonStringToUpdate;
     float temperature = 0.0;
 
-    bool windowOpen = false;
-    jsonStruct_t windowActuator;
-    windowActuator.cb = windowActuate_Callback;
-    windowActuator.pData = &windowOpen;
-    windowActuator.pKey = "windowOpen";
-    windowActuator.type = SHADOW_JSON_BOOL;
+    bool online = true;
+    jsonStruct_t onlineState;
+    onlineState.cb = onlineState_Callback;
+    onlineState.pData = &online;
+    onlineState.pKey = "online";
+    onlineState.type = SHADOW_JSON_BOOL;
+
+    bool firstMeasurementActivated = false;
+    jsonStruct_t firstMeasurement;
+    firstMeasurement.cb = firstMeasurement_Callback;
+    firstMeasurement.pData = &firstMeasurementActivated;
+    firstMeasurement.pKey = "firstMeasurementActivated";
+    firstMeasurement.type = SHADOW_JSON_BOOL;
+
+    bool secondMeasurementActivated = false;
+    jsonStruct_t secondMeasurement;
+    secondMeasurement.cb = secondMeasurement_Callback;
+    secondMeasurement.pData = &secondMeasurementActivated;
+    secondMeasurement.pKey = "secondMeasurementActivated";
+    secondMeasurement.type = SHADOW_JSON_BOOL;
+
+    bool thirdMeasurementActivated = false;
+    jsonStruct_t thirdMeasurement;
+    thirdMeasurement.cb = thirdMeasurement_Callback;
+    thirdMeasurement.pData = &thirdMeasurementActivated;
+    thirdMeasurement.pKey = "thirdMeasurementActivated";
+    thirdMeasurement.type = SHADOW_JSON_BOOL;
 
     jsonStruct_t temperatureHandler;
     temperatureHandler.cb = NULL;
@@ -429,21 +512,6 @@ int main(int argc, char **argv) {
 		return rc;
 	}
 
-/**
- * @brief Called to send a subscribe message to the broker requesting a subscription to an MQTT topic.
- * This is the outer function which does the validations and calls the internal subscribe above to perform the actual operation.
- * It is also responsible for client state changes
- * @return An IoT Error Type defining successful/failed subscription
- */
-    /**
-	IOT_INFO("Subscribing...");
-	rc = aws_iot_mqtt_subscribe(&client, "sdkTest/sub", 11, QOS0, iot_subscribe_callback_handler, NULL);
-	if(SUCCESS != rc) {
-		IOT_ERROR("Error subscribing : %d ", rc);
-		return rc;
-	}*/
-
-	//sprintf(cPayload, "%s : %d ", "hello from SDK", i);
 
 /**
  * @brief Defines the topics with MAC address
@@ -479,8 +547,22 @@ int main(int argc, char **argv) {
  * @brief Any time a delta is published the Json document will be delivered to the pStruct->cb.
  * @return An IoT Error Type defining successful/failed delta registering
  */
-    rc = aws_iot_shadow_register_delta(&shadowClient, &windowActuator);
+    rc = aws_iot_shadow_register_delta(&shadowClient, &onlineState);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
 
+    rc = aws_iot_shadow_register_delta(&shadowClient, &firstMeasurement);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+
+    rc = aws_iot_shadow_register_delta(&shadowClient, &secondMeasurement);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+
+    rc = aws_iot_shadow_register_delta(&shadowClient, &thirdMeasurement);
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Register Delta Error");
     }
@@ -490,42 +572,14 @@ int main(int argc, char **argv) {
 
 
     // loop and publish
-	while((NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc)
-		  && (publishCount > 0 || infinitePublishFlag)) {
+	while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc || true == online) {
 
-		//Max time the yield function will wait for read messages
-		rc = aws_iot_mqtt_yield(&mqttClient, 100);
-		if(NETWORK_ATTEMPTING_RECONNECT == rc) {
-			// If the client is attempting to reconnect we will skip the rest of the loop.
-			continue;
-		}
-
-		sleep(1);
-
-        sprintf(cPayload,"%s%d%s", "{\"Firma\": \"Hardkernel\", \"Sensor\": \"Odroid-C2\", \"Messwert\": \"", i++, "\"}");
-		msg.payloadLen = strlen(cPayload);
-        printf("%s %s%s %zu %s\n", "Payload length topic", topicHardwareInfo, ":", strlen(cPayload), "Byte");
-		rc = aws_iot_mqtt_publish(&mqttClient, topicHardwareInfo, topicHardwareInfoLen, &msg);
-
-
-        sprintf(cPayload,"%s", getMemInfo(memInfo));
-		msg.payloadLen = strlen(cPayload);
-        printf("%s %s%s %zu %s\n", "Payload length topic", topicMemInfo, ":", strlen(cPayload), "Byte");
-        rc = aws_iot_mqtt_publish(&mqttClient, topicMemInfo, topicMemInfoLen, &msg);
-
-        printf("%s %zu %s\n\n", "Max payload length each topic:", sizeof(cPayload), "Byte");
-
-
-        /*
-        if (rc == MQTT_REQUEST_TIMEOUT_ERROR) {
-			IOT_WARN("QOS1 publish ack not received.\n");
-			rc = SUCCESS;
-		}*/
-        /**
-		if(publishCount > 0) {
-			publishCount--;
-		}*/
-
+        //Max time the yield function will wait for read messages
+        rc = aws_iot_mqtt_yield(&mqttClient, 100);
+        if(NETWORK_ATTEMPTING_RECONNECT == rc) {
+            // If the client is attempting to reconnect we will skip the rest of the loop.
+            continue;
+        }
 
         rc = aws_iot_shadow_yield(&shadowClient, 200);
         if(NETWORK_ATTEMPTING_RECONNECT == rc) {
@@ -533,39 +587,43 @@ int main(int argc, char **argv) {
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
         }
-        IOT_INFO("\n=======================================================================================\n");
-        IOT_INFO("On Device: window state %s", windowOpen ? "true" : "false");
+/*
+        IOT_INFO("On Device: Online state %s", online ? "true" : "false");
+        IOT_INFO("On Device: First measurement activation state -> %s", firstMeasurementActivated ? "true" : "false");
+        IOT_INFO("On Device: Second measurement activation state -> %s", secondMeasurementActivated ? "true" : "false");
+        IOT_INFO("On Device: Third measurement activation state -> %s", thirdMeasurementActivated ? "true" : "false");
+*/
         simulateRoomTemperature(&temperature);
 
-        rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+        rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // Initialize the JSON document with Shadow
         if(SUCCESS == rc) {
-            rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 2, &temperatureHandler,
-                                             &windowActuator);
+            rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 4, // Add the reported section of the JSON document of jsonStruct_t.
+                                             &onlineState, &firstMeasurement, &secondMeasurement, &thirdMeasurement);
             if(SUCCESS == rc) {
-                rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer);
+                rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // This function will automatically increment the client token every time this function is called.
                 if(SUCCESS == rc) {
                     IOT_INFO("Update Shadow: %s", JsonDocumentBuffer);
-                    rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer,
+                    rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer, // This function is the one used to perform an Update action to a Thing Name's Shadow.
                                                ShadowUpdateStatusCallback, NULL, 4, true);
 
                 }
             }
         }
-        IOT_INFO("*****************************************************************************************\n");
+        if(SUCCESS != rc) {
+            IOT_ERROR("An error occurred in the loop %d", rc);
+        }
         sleep(1);
 
 
+    } // end of while
 
 
 
+    IOT_INFO("Disconnecting");
+    rc = aws_iot_shadow_disconnect(&shadowClient); // This will close the underlying TCP connection, MQTT connection will also be closed
 
-	}
-
-	if(SUCCESS != rc) {
-		IOT_ERROR("An error occurred in the loop.\n");
-	} else {
-		IOT_INFO("Publish done\n");
-	}
-
+    if(SUCCESS != rc) {
+        IOT_ERROR("Disconnect error %d", rc);
+    }
 	return rc;
 }
