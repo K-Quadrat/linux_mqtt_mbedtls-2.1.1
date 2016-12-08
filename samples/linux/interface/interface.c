@@ -85,7 +85,7 @@ void firstMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataL
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
 
-    if(pContext != NULL) {
+    if(pContext != NULL && (*(bool *) (pContext->pData)) == true) {
         IOT_INFO("Activating the first measurement! State changed to %d", *(bool *) (pContext->pData));
 
         // obtain measurement settings on channel one
@@ -96,6 +96,17 @@ void firstMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataL
             IOT_ERROR("Error subscribing : %d ", rc);
         }
     }
+    else if(pContext != NULL && (*(bool *) (pContext->pData)) == false){
+        IOT_INFO("Deactivating the first measurement! State changed to %d", *(bool *) (pContext->pData));
+
+        // cancel the subscription on channel one
+        IOT_INFO("Cancelling the subscription of get/measurement/settings/channel1");
+        rc = aws_iot_mqtt_unsubscribe(&mqttClient, "get/measurement/settings/channel1", 33);
+
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error unsubscribing : %d ", rc);
+        }
+    }
 }
 
 void secondMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
@@ -103,7 +114,7 @@ void secondMeasurement_Callback(const char *pJsonString, uint32_t JsonStringData
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
 
-    if(pContext != NULL) {
+    if(pContext != NULL && (*(bool *) (pContext->pData)) == true) {
         IOT_INFO("Activating the second measurement! State changed to %d", *(bool *) (pContext->pData));
 
         // obtain measurement settings on channel two
@@ -114,6 +125,17 @@ void secondMeasurement_Callback(const char *pJsonString, uint32_t JsonStringData
             IOT_ERROR("Error subscribing : %d ", rc);
         }
     }
+    else if(pContext != NULL && (*(bool *) (pContext->pData)) == false){
+        IOT_INFO("Deactivating the second measurement! State changed to %d", *(bool *) (pContext->pData));
+
+        // cancel the subscription on channel two
+        IOT_INFO("Cancelling the subscription of get/measurement/settings/channel2");
+        rc = aws_iot_mqtt_unsubscribe(&mqttClient, "get/measurement/settings/channel2", 33);
+
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error unsubscribing : %d ", rc);
+        }
+    }
 }
 
 void thirdMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
@@ -121,7 +143,7 @@ void thirdMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataL
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
 
-    if(pContext != NULL) {
+    if(pContext != NULL && (*(bool *) (pContext->pData)) == true) {
         IOT_INFO("Activating the third measurement! State changed to %d", *(bool *) (pContext->pData));
 
         // obtain measurement settings on channel three
@@ -130,6 +152,17 @@ void thirdMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataL
 
         if(SUCCESS != rc) {
             IOT_ERROR("Error subscribing : %d ", rc);
+        }
+    }
+    else if(pContext != NULL && (*(bool *) (pContext->pData)) == false){
+        IOT_INFO("Deactivating the third measurement! State changed to %d", *(bool *) (pContext->pData));
+
+        // cancel the subscription on channel three
+        IOT_INFO("Cancelling the subscription of get/measurement/settings/channel3");
+        rc = aws_iot_mqtt_unsubscribe(&mqttClient, "get/measurement/settings/channel3", 33);
+
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error unsubscribing : %d ", rc);
         }
     }
 }
