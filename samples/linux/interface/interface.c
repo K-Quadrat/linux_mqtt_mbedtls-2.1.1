@@ -678,9 +678,22 @@ int main(int argc, char **argv) {
         if(SUCCESS != rc) {
             IOT_ERROR("An error occurred in the loop %d", rc);
         }
+
+
+        for(i=0; i<=sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) {
+
+            if (strlen(receivedSettings[i]) != 0){
+                printf("%s %s\n", "Channel", i);
+
+
+
+
+
+            }
+        }
+
+//      *receivedSettings[0] = 0;
         sleep(1);
-
-
     } // end of while
 
 
