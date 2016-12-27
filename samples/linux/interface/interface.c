@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <linux/limits.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "aws_iot_config.h"
 
@@ -17,30 +18,15 @@
 #define SUBTOPIC1 "get/measurement/settings/channel1"
 #define SUBTOPIC2 "get/measurement/settings/channel2"
 #define SUBTOPIC3 "get/measurement/settings/channel3"
+#define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 500
+
 
 AWS_IoT_Client mqttClient;
 AWS_IoT_Client shadowClient;
 char receivedSettings[2][1000]; // 1. Number of topics, 3. Playload
 
-
-#define ROOMTEMPERATURE_UPPERLIMIT 32.0f
-#define ROOMTEMPERATURE_LOWERLIMIT 25.0f
-#define STARTING_ROOMTEMPERATURE ROOMTEMPERATURE_LOWERLIMIT
-
-#define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 500
 uint8_t numPubs = 5;
 
-static void simulateRoomTemperature(float *pRoomTemperature) {
-    static float deltaChange;
-
-    if(*pRoomTemperature >= ROOMTEMPERATURE_UPPERLIMIT) {
-        deltaChange = -0.5f;
-    } else if(*pRoomTemperature <= ROOMTEMPERATURE_LOWERLIMIT) {
-        deltaChange = 0.5f;
-    }
-
-    *pRoomTemperature += deltaChange;
-}
 
 void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, Shadow_Ack_Status_t status,
                                 const char *pReceivedJsonDocument, void *pContextData) {
@@ -199,6 +185,68 @@ void thirdMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataL
         }
     }
 }
+
+
+/**
+ * @brief Run command to run command with options
+ */
+char* runCommand(char* in, char* out) {
+
+    char thisIn [100];
+    char buffer [10000];
+    sprintf(thisIn, "%s", in);
+
+    char delimiter[] = ",;";
+    char *ptr;
+
+    int32_t i = 0;
+    char commandAndOptions[100][10];
+
+// initialisieren und ersten Abschnitt erstellen
+    ptr = strtok(thisIn, delimiter);
+
+    while(ptr != NULL) {
+        sprintf(commandAndOptions[i], "%s", ptr);
+        i++;
+
+        // naechsten Abschnitt erstellen
+        ptr = strtok(NULL, delimiter);
+    }
+
+
+    FILE *fp;
+
+    char blank[] = " ";
+
+    char commandRun[80];
+
+    strcpy(commandRun, commandAndOptions[0]);
+    strcat(commandRun, blank);
+    strcat(commandRun, commandAndOptions[1]);
+
+
+    /* Open the command for reading. */
+    fp = popen(commandRun, "r");
+    if (fp == NULL) {
+        printf("Failed to run command\n" );
+        exit(1);
+    }
+
+    /* Read the output a line at a time - output to out. */
+
+    while (fgets(buffer, sizeof(buffer)-1, fp) != NULL) {
+
+        if (strlen(out) == 0) {
+            strcpy(out, buffer);
+        } else
+            strcat(out, buffer);
+    }
+
+    pclose(fp); // close
+
+    return out;
+}
+
 
 
 /**
@@ -362,59 +410,21 @@ void parseInputArgsForConnectParams(int argc, char **argv) {
 
 }
 
-int main(int argc, char **argv) {
-	bool infinitePublishFlag = true;
+IoT_Error_t shadowRun() {
+    char rootCA[PATH_MAX + 1];
+    char clientCRT[PATH_MAX + 1];
+    char clientKey[PATH_MAX + 1];
+    char CurrentWD[PATH_MAX + 1];
+    int32_t i = 0;
+    IoT_Error_t rc = FAILURE;
 
-	char rootCA[PATH_MAX + 1];
-	char clientCRT[PATH_MAX + 1];
-	char clientKey[PATH_MAX + 1];
-	char CurrentWD[PATH_MAX + 1];
-	char cPayload[131000];
-
-	int32_t i = 0;
-    char macAddress[50];
-    char memInfo[5000];
-
-    char topicHardwareInfo[100]; // Defines a string for the first topic for the hardware information
-    char topicMemInfo[100]; // Defines a string for the second topic for the memory information
-
-    int topicHardwareInfoLen;
-    int topicMemInfoLen;
-
-	IoT_Error_t rc = FAILURE;
-
-/*
-	AWS_IoT_Client mqttClient;
-    AWS_IoT_Client shadowClient;
-*/
-	IoT_Client_Init_Params clientInitParams = iotClientInitParamsDefault; // Defining a type for MQTT initialization parameters
-	IoT_Client_Connect_Params clientConnectParams = iotClientConnectParamsDefault; // Defining a type for MQTT connection parameters
     ShadowInitParameters_t shadowInitParams = ShadowInitParametersDefault; // Defining a type for shadow initialization parameters
     ShadowConnectParameters_t shadowConnectParams = ShadowConnectParametersDefault; // Defining a type for shadow connection parameters
 
-
-/**
- * @brief Defines a type for MQTT Publish messages. Used for both incoming and out going messages
- */
-    /**
-	IoT_Publish_Message_Params paramsQOS0;
-	IoT_Publish_Message_Params paramsQOS1;
-*/
-    IoT_Publish_Message_Params msg;
-
-
-	parseInputArgsForConnectParams(argc, argv);
-
-	IOT_INFO("\nAWS IoT SDK Version %d.%d.%d-%s\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TAG);
-
-	getcwd(CurrentWD, sizeof(CurrentWD));
-	snprintf(rootCA, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_ROOT_CA_FILENAME);
-	snprintf(clientCRT, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_CERTIFICATE_FILENAME);
-	snprintf(clientKey, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_PRIVATE_KEY_FILENAME);
-
-	IOT_DEBUG("rootCA %s", rootCA);
-	IOT_DEBUG("clientCRT %s", clientCRT);
-	IOT_DEBUG("clientKey %s", clientKey);
+    getcwd(CurrentWD, sizeof(CurrentWD));
+    snprintf(rootCA, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_ROOT_CA_FILENAME);
+    snprintf(clientCRT, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_CERTIFICATE_FILENAME);
+    snprintf(clientKey, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_PRIVATE_KEY_FILENAME);
 
 
 /**
@@ -518,6 +528,150 @@ int main(int argc, char **argv) {
 
 
 /**
+ * @brief Any time a delta is published the Json document will be delivered to the pStruct->cb.
+ * @return An IoT Error Type defining successful/failed delta registering
+ */
+    rc = aws_iot_shadow_register_delta(&shadowClient, &onlineState);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+
+    rc = aws_iot_shadow_register_delta(&shadowClient, &firstMeasurement);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+
+    rc = aws_iot_shadow_register_delta(&shadowClient, &secondMeasurement);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+
+    rc = aws_iot_shadow_register_delta(&shadowClient, &thirdMeasurement);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+
+    // loop and publish
+    while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc || true == online) {
+
+        rc = aws_iot_shadow_yield(&shadowClient, 200);
+        if(NETWORK_ATTEMPTING_RECONNECT == rc) {
+            sleep(1);
+            // If the client is attempting to reconnect we will skip the rest of the loop.
+            continue;
+        }
+/*
+        IOT_INFO("On Device: Online state %s", online ? "true" : "false");
+        IOT_INFO("On Device: First measurement activation state -> %s", firstMeasurementActivated ? "true" : "false");
+        IOT_INFO("On Device: Second measurement activation state -> %s", secondMeasurementActivated ? "true" : "false");
+        IOT_INFO("On Device: Third measurement activation state -> %s", thirdMeasurementActivated ? "true" : "false");
+*/
+
+        rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // Initialize the JSON document with Shadow
+        if(SUCCESS == rc) {
+            rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 4, // Add the reported section of the JSON document of jsonStruct_t.
+                                             &onlineState, &firstMeasurement, &secondMeasurement, &thirdMeasurement);
+            if(SUCCESS == rc) {
+                rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // This function will automatically increment the client token every time this function is called.
+                if(SUCCESS == rc) {
+                    IOT_INFO("Update Shadow: %s", JsonDocumentBuffer);
+                    rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer, // This function is the one used to perform an Update action to a Thing Name's Shadow.
+                                               ShadowUpdateStatusCallback, NULL, 4, true);
+
+                }
+            }
+        }
+        if(SUCCESS != rc) {
+            IOT_ERROR("An error occurred in the loop %d", rc);
+        }
+
+
+/*
+        for(i=0; i<=sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) {
+
+            if (strlen(receivedSettings[i]) != 0){
+                printf("%s %zu\n", "Channel->", i+1);
+
+            }
+        }
+*/
+
+//      *receivedSettings[0] = 0;
+        sleep(1);
+    } // end of while
+
+
+
+    IOT_INFO("Disconnecting");
+    rc = aws_iot_shadow_disconnect(&shadowClient); // This will close the underlying TCP connection, MQTT connection will also be closed
+
+    if(SUCCESS != rc) {
+        IOT_ERROR("Disconnect error %d", rc);
+    }
+
+
+
+}
+
+
+
+int main(int argc, char **argv) {
+	bool infinitePublishFlag = true;
+
+	char rootCA[PATH_MAX + 1];
+	char clientCRT[PATH_MAX + 1];
+	char clientKey[PATH_MAX + 1];
+	char CurrentWD[PATH_MAX + 1];
+	char cPayload[131000];
+
+	int32_t i = 0;
+    char macAddress[50];
+    char memInfo[5000];
+    char runCommandOut[10000];
+
+    char topicHardwareInfo[100]; // Defines a string for the first topic for the hardware information
+    char topicMemInfo[100]; // Defines a string for the second topic for the memory information
+
+    int topicHardwareInfoLen;
+    int topicMemInfoLen;
+
+	IoT_Error_t rc = FAILURE;
+    pthread_t pThreadShadow;
+
+
+/*
+	AWS_IoT_Client mqttClient;
+    AWS_IoT_Client shadowClient;
+*/
+	IoT_Client_Init_Params clientInitParams = iotClientInitParamsDefault; // Defining a type for MQTT initialization parameters
+	IoT_Client_Connect_Params clientConnectParams = iotClientConnectParamsDefault; // Defining a type for MQTT connection parameters
+
+
+/**
+ * @brief Defines a type for MQTT Publish messages. Used for both incoming and out going messages
+ */
+    /**
+	IoT_Publish_Message_Params paramsQOS0;
+	IoT_Publish_Message_Params paramsQOS1;
+*/
+    IoT_Publish_Message_Params msg;
+
+
+	parseInputArgsForConnectParams(argc, argv);
+
+	IOT_INFO("\nAWS IoT SDK Version %d.%d.%d-%s\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TAG);
+
+	getcwd(CurrentWD, sizeof(CurrentWD));
+	snprintf(rootCA, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_ROOT_CA_FILENAME);
+	snprintf(clientCRT, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_CERTIFICATE_FILENAME);
+	snprintf(clientKey, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_PRIVATE_KEY_FILENAME);
+
+	IOT_DEBUG("rootCA %s", rootCA);
+	IOT_DEBUG("clientCRT %s", clientCRT);
+	IOT_DEBUG("clientKey %s", clientKey);
+
+
+/**
  * @brief Defining MQTT initialization parameters. Passed into client when to initialize the client
  */
     clientInitParams.enableAutoReconnect = false; // We enable this later below
@@ -609,36 +763,10 @@ int main(int argc, char **argv) {
 		infinitePublishFlag = false;
 	}
 
-/**
- * @brief Any time a delta is published the Json document will be delivered to the pStruct->cb.
- * @return An IoT Error Type defining successful/failed delta registering
- */
-    rc = aws_iot_shadow_register_delta(&shadowClient, &onlineState);
-    if(SUCCESS != rc) {
-        IOT_ERROR("Shadow Register Delta Error");
-    }
-
-    rc = aws_iot_shadow_register_delta(&shadowClient, &firstMeasurement);
-    if(SUCCESS != rc) {
-        IOT_ERROR("Shadow Register Delta Error");
-    }
-
-    rc = aws_iot_shadow_register_delta(&shadowClient, &secondMeasurement);
-    if(SUCCESS != rc) {
-        IOT_ERROR("Shadow Register Delta Error");
-    }
-
-    rc = aws_iot_shadow_register_delta(&shadowClient, &thirdMeasurement);
-    if(SUCCESS != rc) {
-        IOT_ERROR("Shadow Register Delta Error");
-    }
-
-
-    temperature = STARTING_ROOMTEMPERATURE;
-
+    pthread_create (&pThreadShadow, NULL, shadowRun, NULL);
 
     // loop and publish
-	while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc || true == online) {
+	while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
 
         //Max time the yield function will wait for read messages
         rc = aws_iot_mqtt_yield(&mqttClient, 100);
@@ -647,44 +775,27 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        rc = aws_iot_shadow_yield(&shadowClient, 200);
-        if(NETWORK_ATTEMPTING_RECONNECT == rc) {
-            sleep(1);
-            // If the client is attempting to reconnect we will skip the rest of the loop.
-            continue;
-        }
+
 /*
         IOT_INFO("On Device: Online state %s", online ? "true" : "false");
         IOT_INFO("On Device: First measurement activation state -> %s", firstMeasurementActivated ? "true" : "false");
         IOT_INFO("On Device: Second measurement activation state -> %s", secondMeasurementActivated ? "true" : "false");
         IOT_INFO("On Device: Third measurement activation state -> %s", thirdMeasurementActivated ? "true" : "false");
 */
-        simulateRoomTemperature(&temperature);
+        printf("%s\n", "HELLO");
+        runCommand("cat;/proc/cpuinfo", runCommandOut);
+        printf("%s\n", runCommandOut);
 
-        rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // Initialize the JSON document with Shadow
-        if(SUCCESS == rc) {
-            rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 4, // Add the reported section of the JSON document of jsonStruct_t.
-                                             &onlineState, &firstMeasurement, &secondMeasurement, &thirdMeasurement);
-            if(SUCCESS == rc) {
-                rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // This function will automatically increment the client token every time this function is called.
-                if(SUCCESS == rc) {
-                    IOT_INFO("Update Shadow: %s", JsonDocumentBuffer);
-                    rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer, // This function is the one used to perform an Update action to a Thing Name's Shadow.
-                                               ShadowUpdateStatusCallback, NULL, 4, true);
 
-                }
-            }
-        }
-        if(SUCCESS != rc) {
-            IOT_ERROR("An error occurred in the loop %d", rc);
-        }
+
+//        pthread_join (pThreadShadow, NULL);
+
 
 
         for(i=0; i<=sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) {
 
             if (strlen(receivedSettings[i]) != 0){
-                printf("%s %s\n", "Channel", i);
-
+                printf("%s %zu\n", "Channel", i+1);
 
 
 
