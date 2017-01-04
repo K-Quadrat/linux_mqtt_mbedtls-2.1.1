@@ -451,7 +451,7 @@ IoT_Error_t shadowRun() {
     onlineState.pKey = "online";
     onlineState.type = SHADOW_JSON_BOOL;
 
-    bool firstMeasurementActivated = true;
+    bool firstMeasurementActivated = false;
     jsonStruct_t firstMeasurement;
     firstMeasurement.cb = firstMeasurement_Callback;
     firstMeasurement.pData = &firstMeasurementActivated;
