@@ -563,6 +563,9 @@ IoT_Error_t shadowRun() {
     // loop and publish
     while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc || true == online) {
 
+        printf("Thread beginn");
+
+
         rc = aws_iot_shadow_yield(&shadowClient, 200);
         if(NETWORK_ATTEMPTING_RECONNECT == rc) {
             sleep(1);
@@ -675,9 +678,11 @@ int main(int argc, char **argv) {
 	snprintf(clientCRT, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_CERTIFICATE_FILENAME);
 	snprintf(clientKey, PATH_MAX + 1, "%s/%s/%s", CurrentWD, certDirectory, AWS_IOT_PRIVATE_KEY_FILENAME);
 
+/*
 	IOT_DEBUG("rootCA %s", rootCA);
 	IOT_DEBUG("clientCRT %s", clientCRT);
 	IOT_DEBUG("clientKey %s", clientKey);
+*/
 
 
 /**
