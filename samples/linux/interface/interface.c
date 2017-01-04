@@ -253,7 +253,7 @@ char* runCommand(char* in, char* out) {
  * @brief Filereader to read memory info from the System
  */
 
-char* getMemInfo(char* out) {
+char* jsonParserMemInfo(char* out) {
     FILE *fp;
     char line[1000];
     int i = 0;
@@ -269,6 +269,15 @@ char* getMemInfo(char* out) {
         sprintf(names[i], "%s", line);
         i++;
     }
+
+/*
+    while((fscanf(out,"%s",line)) != EOF ) {
+
+    sprintf(names[i], "%s", line);
+    i++;
+}
+*/
+
 
     int l;
 
@@ -306,7 +315,7 @@ char* getMemInfo(char* out) {
 
 char* getMacAddress(char* out) {
     FILE *fp;
-    fp = fopen("/sys/class/net/eth3/address", "r");
+    fp = fopen("/sys/class/net/eth0/address", "r");
     if (fp == NULL) {
         sprintf(out, "%s", "ERROR! Could not read the Mac address!");
     } else {
@@ -629,11 +638,11 @@ int main(int argc, char **argv) {
     char memInfo[5000];
     char runCommandOut[10000];
 
-    char topicHardwareInfo[100]; // Defines a string for the first topic for the hardware information
-    char topicMemInfo[100]; // Defines a string for the second topic for the memory information
+    char pub1[100]; // Defines a string for the first topic to publish
+    char topicHardwareInfo[100]; // Defines a string for the second topic to publish
 
+    int pub1Len;
     int topicHardwareInfoLen;
-    int topicMemInfoLen;
 
 	IoT_Error_t rc = FAILURE;
     pthread_t pThreadShadow;
@@ -736,17 +745,17 @@ int main(int argc, char **argv) {
 /**
  * @brief Defines the topics with MAC address
  */
+    sprintf(pub1, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"pub1");
     sprintf(topicHardwareInfo, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"hardwareInfo");
-    sprintf(topicMemInfo, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"memInfo");
 
+    pub1Len = strlen(pub1);
     topicHardwareInfoLen = strlen(topicHardwareInfo); // Length of the topic for aws_iot_mqtt_publish function
-    topicMemInfoLen = strlen(topicMemInfo);
 
 
     IOT_DEBUG("MAC address: %s", getMacAddress(macAddress));
-    IOT_DEBUG("Topic1: %s", topicHardwareInfo);
-    IOT_DEBUG("Topic2: %s", topicMemInfo);
-/**
+    IOT_DEBUG("Topic1: %s", pub1);
+    IOT_DEBUG("Topic2: %s", topicHardwareInfo);
+    /**
 	paramsQOS0.qos = QOS0;
 	paramsQOS0.payload = (void *) cPayload;
 	paramsQOS0.isRetained = 0;
@@ -782,10 +791,6 @@ int main(int argc, char **argv) {
         IOT_INFO("On Device: Second measurement activation state -> %s", secondMeasurementActivated ? "true" : "false");
         IOT_INFO("On Device: Third measurement activation state -> %s", thirdMeasurementActivated ? "true" : "false");
 */
-        printf("%s\n", "HELLO");
-        runCommand("cat;/proc/cpuinfo", runCommandOut);
-        printf("%s\n", runCommandOut);
-
 
 
 //        pthread_join (pThreadShadow, NULL);
@@ -796,14 +801,22 @@ int main(int argc, char **argv) {
 
             if (strlen(receivedSettings[i]) != 0){
                 printf("%s %zu\n", "Channel", i+1);
+                runCommand(receivedSettings[i], runCommandOut);
+                printf("%s\n", runCommandOut);
 
+                if (strcmp(receivedSettings[i], "cat;/proc/meminfo") == 0){
+                    sprintf(cPayload,"%s", jsonParserMemInfo(runCommandOut));
+                    msg.payloadLen = strlen(cPayload);
+                    printf("%s %s%s %zu %s\n", "Payload length topic", pub1, ":", strlen(cPayload), "Byte");
+                    rc = aws_iot_mqtt_publish(&mqttClient, pub1, pub1Len, &msg);
 
-
-
+                    printf("%s %zu %s\n\n", "Max payload length each topic:", sizeof(cPayload), "Byte");
+                }
+                *receivedSettings[i] = 0;
+                *runCommandOut = 0;
             }
         }
 
-//      *receivedSettings[0] = 0;
         sleep(1);
     } // end of while
 
