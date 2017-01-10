@@ -3845,9 +3845,6 @@
 		<Unit filename="/home/jens/ClionProjects/linux_mqtt_mbedtls-2.1.1/samples/linux/interface/compile_and_run_tester.sh">
 			<Option target="linux_mqtt_mbedtls_2_1_1"/>
 		</Unit>
-		<Unit filename="/home/jens/ClionProjects/linux_mqtt_mbedtls-2.1.1/samples/linux/interface/interface">
-			<Option target="linux_mqtt_mbedtls_2_1_1"/>
-		</Unit>
 		<Unit filename="/home/jens/ClionProjects/linux_mqtt_mbedtls-2.1.1/samples/linux/interface/interface.c">
 			<Option target="linux_mqtt_mbedtls_2_1_1"/>
 		</Unit>
@@ -3870,9 +3867,6 @@
 			<Option target="linux_mqtt_mbedtls_2_1_1"/>
 		</Unit>
 		<Unit filename="/home/jens/ClionProjects/linux_mqtt_mbedtls-2.1.1/samples/linux/interface/subscribe_publish_sample.c">
-			<Option target="linux_mqtt_mbedtls_2_1_1"/>
-		</Unit>
-		<Unit filename="/home/jens/ClionProjects/linux_mqtt_mbedtls-2.1.1/samples/linux/interface/tester">
 			<Option target="linux_mqtt_mbedtls_2_1_1"/>
 		</Unit>
 		<Unit filename="/home/jens/ClionProjects/linux_mqtt_mbedtls-2.1.1/samples/linux/interface/tester.c">

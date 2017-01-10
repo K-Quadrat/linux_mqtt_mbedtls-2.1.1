@@ -2,7 +2,7 @@
 .prevent_execution:
 	exit 0
 
-CC = gcc
+CC = g++
 
 #remove @ for no make command prints
 DEBUG = @
@@ -10,7 +10,7 @@ DEBUG = @
 APP_DIR = .
 APP_INCLUDE_DIRS += -I $(APP_DIR)
 APP_NAME = interface
-APP_SRC_FILES = $(APP_NAME).c
+APP_SRC_FILES = $(APP_NAME).cpp
 
 #IoT client directory
 IOT_CLIENT_DIR = ../../..
@@ -50,10 +50,10 @@ LOG_FLAGS += -DENABLE_IOT_INFO
 LOG_FLAGS += -DENABLE_IOT_WARN
 LOG_FLAGS += -DENABLE_IOT_ERROR
 
-COMPILER_FLAGS += -g
 COMPILER_FLAGS += $(LOG_FLAGS)
 #If the processor is big endian uncomment the compiler flag
 #COMPILER_FLAGS += -DREVERSED
+COMPILER_FLAGS += -std=c++0x
 
 MBED_TLS_MAKE_CMD = $(MAKE) -C $(MBEDTLS_DIR)
 

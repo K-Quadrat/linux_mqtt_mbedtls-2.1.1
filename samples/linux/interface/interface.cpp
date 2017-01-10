@@ -15,6 +15,9 @@
 #include "aws_iot_version.h"
 #include "aws_iot_shadow_interface.h"
 
+#include "boost/property_tree/ptree.hpp"
+#include "boost/property_tree/json_parser.hpp"
+
 #define SUBTOPIC1 "get/measurement/settings/channel1"
 #define SUBTOPIC2 "get/measurement/settings/channel2"
 #define SUBTOPIC3 "get/measurement/settings/channel3"
@@ -420,7 +423,7 @@ void parseInputArgsForConnectParams(int argc, char **argv) {
 
 }
 
-void *shadowRun() { //IoT_Error_t
+void *shadowRun(void *threadid) { //IoT_Error_t
     char rootCA[PATH_MAX + 1];
     char clientCRT[PATH_MAX + 1];
     char clientKey[PATH_MAX + 1];
@@ -445,14 +448,13 @@ void *shadowRun() { //IoT_Error_t
     char *pJsonStringToUpdate;
     float temperature = 0.0;
 
-    bool online = true;
+    char online = true;
     jsonStruct_t onlineState;
     onlineState.cb = onlineState_Callback;
     onlineState.pData = &online;
     onlineState.pKey = "online";
     onlineState.type = SHADOW_JSON_BOOL;
 
-//    bool firstMeasurementActivated = false;
     char firstMeasurementActivated[100] = "hello";
     jsonStruct_t firstMeasurement;
 //    firstMeasurement.cb = firstMeasurement_Callback;
@@ -780,7 +782,7 @@ int main(int argc, char **argv) {
 		infinitePublishFlag = false;
 	}
 
-    pthread_create (&pThreadShadow, NULL, shadowRun, NULL);
+    pthread_create (&pThreadShadow, NULL, shadowRun, (void *)1);
 
     // loop and publish
 	while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
