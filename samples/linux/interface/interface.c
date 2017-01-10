@@ -19,11 +19,12 @@
 #define SUBTOPIC2 "get/measurement/settings/channel2"
 #define SUBTOPIC3 "get/measurement/settings/channel3"
 #define MAX_LENGTH_OF_UPDATE_JSON_BUFFER 500
+#define _ENABLE_THREAD_SUPPORT_
 
 
 AWS_IoT_Client mqttClient;
 AWS_IoT_Client shadowClient;
-char receivedSettings[2][1000]; // 1. Number of topics, 3. Playload
+char receivedSettings[3][1000]; // 1. Number of topics, 3. Playload
 
 uint8_t numPubs = 5;
 
@@ -419,7 +420,7 @@ void parseInputArgsForConnectParams(int argc, char **argv) {
 
 }
 
-IoT_Error_t shadowRun() {
+void *shadowRun() { //IoT_Error_t
     char rootCA[PATH_MAX + 1];
     char clientCRT[PATH_MAX + 1];
     char clientKey[PATH_MAX + 1];
@@ -451,12 +452,14 @@ IoT_Error_t shadowRun() {
     onlineState.pKey = "online";
     onlineState.type = SHADOW_JSON_BOOL;
 
-    bool firstMeasurementActivated = false;
+//    bool firstMeasurementActivated = false;
+    char firstMeasurementActivated[100] = "hello";
     jsonStruct_t firstMeasurement;
-    firstMeasurement.cb = firstMeasurement_Callback;
+//    firstMeasurement.cb = firstMeasurement_Callback;
+    firstMeasurement.cb = NULL;
     firstMeasurement.pData = &firstMeasurementActivated;
     firstMeasurement.pKey = "firstMeasurementActivated";
-    firstMeasurement.type = SHADOW_JSON_BOOL;
+    firstMeasurement.type = SHADOW_JSON_STRING;
 
     bool secondMeasurementActivated = false;
     jsonStruct_t secondMeasurement;
@@ -499,7 +502,7 @@ IoT_Error_t shadowRun() {
     rc = aws_iot_shadow_init(&shadowClient, &shadowInitParams);
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Connection Error");
-        return rc;
+//        return rc;
     }
 
 
@@ -519,7 +522,7 @@ IoT_Error_t shadowRun() {
     rc = aws_iot_shadow_connect(&shadowClient, &shadowConnectParams);
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Connection Error");
-        return rc;
+//        return rc;
     }
 
 
@@ -532,7 +535,7 @@ IoT_Error_t shadowRun() {
     rc = aws_iot_shadow_set_autoreconnect_status(&shadowClient, true);
     if(SUCCESS != rc) {
         IOT_ERROR("Unable to set Auto Reconnect to true - %d", rc);
-        return rc;
+//        return rc;
     }
 
 
@@ -802,9 +805,12 @@ int main(int argc, char **argv) {
 
 
 
-        for(i=0; i<=sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) {
+        for(i=0; i<sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) { //<=
+//        for(i=0; i<=2; i++) {
+//            printf("%s %zu\n", "i=", i);
 
-            if (strlen(receivedSettings[i]) != 0){
+
+                if (strlen(receivedSettings[i]) != 0){
                 printf("%s %zu\n", "Channel", i+1);
                 runCommand(receivedSettings[i], runCommandOut);
                 printf("%s\n", runCommandOut);

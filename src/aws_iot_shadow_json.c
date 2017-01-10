@@ -369,6 +369,8 @@ static IoT_Error_t UpdateValueIfNoObject(const char *pJsonString, jsonStruct_t *
 		ret_val = parseFloatValue((float *) pDataStruct->pData, pJsonString, &token);
 	} else if(pDataStruct->type == SHADOW_JSON_DOUBLE) {
 		ret_val = parseDoubleValue((double *) pDataStruct->pData, pJsonString, &token);
+	} else if(pDataStruct->type == SHADOW_JSON_STRING) {
+		ret_val = parseStringValue((char *) pDataStruct->pData, pJsonString, &token);
 	}
 
 	return ret_val;
