@@ -103,7 +103,7 @@ void onlineState_Callback(const char *pJsonString, uint32_t JsonStringDataLen, j
     }
 }
 
-void firstMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
+void channels_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
     IOT_UNUSED(pJsonString);
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
@@ -455,7 +455,7 @@ void *shadowRun(void *threadid) { //IoT_Error_t
     onlineState.pKey = "online";
     onlineState.type = SHADOW_JSON_BOOL;
 
-    char customer[100] = "hello";
+    char customer[100] = "unknown";
     jsonStruct_t customerStruct;
 //    firstMeasurement.cb = firstMeasurement_Callback;
     customerStruct.cb = NULL;
@@ -463,25 +463,49 @@ void *shadowRun(void *threadid) { //IoT_Error_t
     customerStruct.pKey = "customer";
     customerStruct.type = SHADOW_JSON_STRING;
 
-    bool secondMeasurementActivated = false;
-    jsonStruct_t secondMeasurement;
-    secondMeasurement.cb = secondMeasurement_Callback;
-    secondMeasurement.pData = &secondMeasurementActivated;
-    secondMeasurement.pKey = "secondMeasurementActivated";
-    secondMeasurement.type = SHADOW_JSON_BOOL;
+    char location[100] = "unknown";
+    jsonStruct_t locationStruct;
+    locationStruct.cb = NULL;
+    locationStruct.pData = &location;
+    locationStruct.pKey = "location";
+    locationStruct.type = SHADOW_JSON_STRING;
 
+    char id[100] = "unknown";
+    jsonStruct_t idStruct;
+    idStruct.cb = NULL;
+    idStruct.pData = &id;
+    idStruct.pKey = "id";
+    idStruct.type = SHADOW_JSON_STRING;
+
+    char connection[100] = "unknown";
+    jsonStruct_t connectionStruct;
+    connectionStruct.cb = NULL;
+    connectionStruct.pData = &connection;
+    connectionStruct.pKey = "connection";
+    connectionStruct.type = SHADOW_JSON_STRING;
+
+    char group[100] = "unknown";
+    jsonStruct_t groupStruct;
+    groupStruct.cb = NULL;
+    groupStruct.pData = &group;
+    groupStruct.pKey = "group";
+    groupStruct.type = SHADOW_JSON_STRING;
+
+    char channels[100] = "unknown";
+    jsonStruct_t channelsStruct;
+    channelsStruct.cb = NULL;
+    channelsStruct.pData = &channels;
+    channelsStruct.pKey = "channels";
+    channelsStruct.type = SHADOW_JSON_STRING;
+
+
+/*
     bool thirdMeasurementActivated = false;
     jsonStruct_t thirdMeasurement;
     thirdMeasurement.cb = thirdMeasurement_Callback;
     thirdMeasurement.pData = &thirdMeasurementActivated;
     thirdMeasurement.pKey = "thirdMeasurementActivated";
-    thirdMeasurement.type = SHADOW_JSON_BOOL;
-
-    jsonStruct_t temperatureHandler;
-    temperatureHandler.cb = NULL;
-    temperatureHandler.pKey = "temperature";
-    temperatureHandler.pData = &temperature;
-    temperatureHandler.type = SHADOW_JSON_FLOAT;
+    thirdMeasurement.type = SHADOW_JSON_BOOL;*/
 
 
 /**
@@ -550,23 +574,37 @@ void *shadowRun(void *threadid) { //IoT_Error_t
         IOT_ERROR("Shadow Register Delta Error");
     }
 
-    rc = aws_iot_shadow_register_delta(&shadowClient, &firstMeasurement);
+    rc = aws_iot_shadow_register_delta(&shadowClient, &customerStruct);
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Register Delta Error");
     }
 
-    rc = aws_iot_shadow_register_delta(&shadowClient, &secondMeasurement);
+    rc = aws_iot_shadow_register_delta(&shadowClient, &locationStruct);
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Register Delta Error");
     }
 
-    rc = aws_iot_shadow_register_delta(&shadowClient, &thirdMeasurement);
+    rc = aws_iot_shadow_register_delta(&shadowClient, &idStruct);
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Register Delta Error");
     }
+
+    rc = aws_iot_shadow_register_delta(&shadowClient, &connectionStruct);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+    rc = aws_iot_shadow_register_delta(&shadowClient, &groupStruct);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+    rc = aws_iot_shadow_register_delta(&shadowClient, &channelsStruct);
+    if(SUCCESS != rc) {
+        IOT_ERROR("Shadow Register Delta Error");
+    }
+
 
     // loop and publish
-    while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc || true == online) {
+    while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc && true == online) {
 
         printf("Thread beginn");
 
@@ -586,8 +624,8 @@ void *shadowRun(void *threadid) { //IoT_Error_t
 
         rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // Initialize the JSON document with Shadow
         if(SUCCESS == rc) {
-            rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 4, // Add the reported section of the JSON document of jsonStruct_t.
-                                             &onlineState, &firstMeasurement, &secondMeasurement, &thirdMeasurement);
+            rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 7, // Add the reported section of the JSON document of jsonStruct_t.
+                                             &onlineState, &customerStruct, &locationStruct, &idStruct, &connectionStruct, &groupStruct, &channelsStruct);
             if(SUCCESS == rc) {
                 rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // This function will automatically increment the client token every time this function is called.
                 if(SUCCESS == rc) {
