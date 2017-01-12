@@ -455,13 +455,13 @@ void *shadowRun(void *threadid) { //IoT_Error_t
     onlineState.pKey = "online";
     onlineState.type = SHADOW_JSON_BOOL;
 
-    char firstMeasurementActivated[100] = "hello";
-    jsonStruct_t firstMeasurement;
+    char customer[100] = "hello";
+    jsonStruct_t customerStruct;
 //    firstMeasurement.cb = firstMeasurement_Callback;
-    firstMeasurement.cb = NULL;
-    firstMeasurement.pData = &firstMeasurementActivated;
-    firstMeasurement.pKey = "firstMeasurementActivated";
-    firstMeasurement.type = SHADOW_JSON_STRING;
+    customerStruct.cb = NULL;
+    customerStruct.pData = &customer;
+    customerStruct.pKey = "customer";
+    customerStruct.type = SHADOW_JSON_STRING;
 
     bool secondMeasurementActivated = false;
     jsonStruct_t secondMeasurement;
