@@ -43,6 +43,7 @@ char receivedSettings[3][1000]; // 1. Number of topics, 3. Playload
 uint8_t numPubs = 5;
 
 
+
 string writeJSON(boost::property_tree::ptree const& pt) {
     //convert property tree to JSON encoded string
     stringstream outputstring;
@@ -87,7 +88,7 @@ ptree readJSON(string inputstring) {
 //        pthread_mutex_lock(&errorMutex);
 //        ::readJSONerror = -1;
 //        pthread_mutex_unlock(&errorMutex);
-        cout << "ERROR readJSON" << "\n";
+        cout << "ERROR";
     }
 
     return pt;
@@ -164,106 +165,40 @@ void onlineState_Callback(const char *pJsonString, uint32_t JsonStringDataLen, j
     }
 }
 
-
-char* myStringCopyAusnahme(char* dest, const char* source){
-
-    int i, idx=0;
-    for(i=0; i<=strlen(source); i++, idx++){
-        if(source[i] != '\\'){      // überprüfung ob zeichen aus bei source[i] ungleich der ausnahme
-            dest[idx]=source[i];// wenn ja, dann kopiere
-        }
-        else{                // wenn nicht
-            idx--;           // reduziere idx um lücke in dest zu schliessen
-        }
-    }
-
-    return dest;
-}
-
-
 void channels_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
     IOT_UNUSED(pJsonString);
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
 
-    char pData [10000];
-    sprintf(pData, "%s", (char*)pContext->pData);
-    char dest [10000];
-
-
-    myStringCopyAusnahme(dest, pData);
-
-
-//
-//    printf("\n%s%s\n", "***** Output channels pContext->pData ***** ",(char*)pContext->pData);
-//
-//    printf("\n%s%s\n", "***** Output dest ***** ",dest);
-
-
-    char jsonToRead [10000];
-    sprintf(jsonToRead, "%s", "{\"channels\":");
-
-    strcat(jsonToRead, dest);
-    strcat(jsonToRead, "}");
-
-//    printf("\n%s%s\n", "***** Output jsonToRead ***** ",jsonToRead);
-
-
     ptree pt;
-    pt = readJSON(jsonToRead);
+//    pt = readJSON("{\"channels\":[{\"name\":\"10\", \"subscribed\":true},{\"name\":\"11\", \"subscribed\":false},{\"name\":\"12\", \"subscribed\":true}]}");
+    pt = readJSON(pContext->pData);
 
 
     BOOST_FOREACH(const ptree::value_type &v, pt.get_child("channels")) {
 
                     if (v.second.get<string>("subscribed").compare("true") == 0){
 
-                        const char * channelNameTrue = v.second.get<string>("name").c_str();
+                        IOT_INFO("Subscribing %s", v.second.get<string>("name"));
+                        const char * c = v.second.get<string>("name").c_str();
 
-                        IOT_INFO("Subscribing %s", channelNameTrue);
-                        aws_iot_mqtt_unsubscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue));
-                        sleep(1);
-                        rc = aws_iot_mqtt_subscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue), QOS0, iot_subscribe_callback_handler, NULL);
-                        sleep(1);
-
-                        while(SUCCESS != rc) {
-                            IOT_ERROR("error subscribing, repeating... : %d ", rc);
-                            aws_iot_mqtt_unsubscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue));
-                            sleep(1);
-                            rc = aws_iot_mqtt_subscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue), QOS0, iot_subscribe_callback_handler, NULL);
-                            sleep(1);
-
-                        }
-
-
-/*                        if(SUCCESS != rc) {
-                            IOT_ERROR("error subscribing, repeating... : %d ", rc);
-//                            sleep(2);
-//                            aws_iot_mqtt_unsubscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue));
-                            sleep(3);
-                            rc = aws_iot_mqtt_subscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue), QOS0, iot_subscribe_callback_handler, NULL);
-
-                            if(SUCCESS != rc) {
-                                IOT_ERROR("final error subscribing : %d ", rc);
-                            }
-
-
-                        }*/
-
-                    }
-
-                        else if (v.second.get<string>("subscribed").compare("false") == 0){
-
-                            const char * channelNameFalse = v.second.get<string>("name").c_str();
-
-                            IOT_INFO("Unsubscribing %s", channelNameFalse);
-                            rc = aws_iot_mqtt_unsubscribe(&mqttClient, channelNameFalse, strlen(channelNameFalse));
-                            sleep(1);
+                        rc = aws_iot_mqtt_subscribe(&mqttClient, c, 10, QOS0, iot_subscribe_callback_handler, NULL);
 
                         if(SUCCESS != rc) {
+                            IOT_ERROR("Error subscribing : %d ", rc);
+                    }
+                    else if (v.second.get<string>("subscribed").compare("false") == 0){
+
+                            IOT_INFO("Unsubscribing %s", v.second.get<string>("name"));
+                            const char * d = v.second.get<string>("name").c_str();
+
+                            rc = aws_iot_mqtt_unsubscribe(&mqttClient, c, 10);
+
+                            if(SUCCESS != rc) {
                                 IOT_ERROR("Error unsubscribing : %d ", rc);
                             }
+                        }
                     }
-
 
                     // v.first is the name of the child.
                     // v.second is the child tree.
@@ -271,17 +206,33 @@ void channels_Callback(const char *pJsonString, uint32_t JsonStringDataLen, json
 
 }
 
-void groups_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
+void secondMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
     IOT_UNUSED(pJsonString);
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
 
-    printf("\n%s%s\n", "***** Output groups pContext->pData ***** ",(char*)pContext->pData);
+    if(pContext != NULL && (*(bool *) (pContext->pData)) == true) {
+        IOT_INFO("Activating the second measurement! State changed to %d", *(bool *) (pContext->pData));
 
-    ptree pt;
-    pt = readJSON((char*)pContext->pData);
+        // obtain measurement settings on channel two
+        IOT_INFO("Subscribing %s", SUBTOPIC2);
+        rc = aws_iot_mqtt_subscribe(&mqttClient, SUBTOPIC2, 33, QOS0, iot_subscribe_callback_handler, NULL);
 
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error subscribing : %d ", rc);
+        }
+    }
+    else if(pContext != NULL && (*(bool *) (pContext->pData)) == false){
+        IOT_INFO("Deactivating the second measurement! State changed to %d", *(bool *) (pContext->pData));
 
+        // cancel the subscription on channel two
+        IOT_INFO("Cancelling the subscription of %s", SUBTOPIC2);
+        rc = aws_iot_mqtt_unsubscribe(&mqttClient, "get/measurement/+/", 33);
+
+        if(SUCCESS != rc) {
+            IOT_ERROR("Error unsubscribing : %d ", rc);
+        }
+    }
 }
 
 void thirdMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
@@ -573,7 +524,7 @@ void *shadowRun(void *threadid) { //IoT_Error_t
 
     char online = false;
     jsonStruct_t onlineState;
-    onlineState.cb = NULL;
+    onlineState.cb = secondMeasurement_Callback;
     onlineState.pData = &online;
     onlineState.pKey = "online";
     onlineState.type = SHADOW_JSON_BOOL;
@@ -607,14 +558,14 @@ void *shadowRun(void *threadid) { //IoT_Error_t
     connectionStruct.pKey = "connection";
     connectionStruct.type = SHADOW_JSON_STRING;
 
-    char groups[1000] = "unknown";
-    jsonStruct_t groupsStruct;
-    groupsStruct.cb = groups_Callback;
-    groupsStruct.pData = &groups;
-    groupsStruct.pKey = "groups";
-    groupsStruct.type = SHADOW_JSON_STRING;
+    char group[100] = "unknown";
+    jsonStruct_t groupStruct;
+    groupStruct.cb = NULL;
+    groupStruct.pData = &group;
+    groupStruct.pKey = "group";
+    groupStruct.type = SHADOW_JSON_STRING;
 
-    char channels[1000] = "unknown";
+    char channels[100] = "unknown";
     jsonStruct_t channelsStruct;
     channelsStruct.cb = channels_Callback;
     channelsStruct.pData = &channels;
@@ -716,7 +667,7 @@ void *shadowRun(void *threadid) { //IoT_Error_t
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Register Delta Error");
     }
-    rc = aws_iot_shadow_register_delta(&shadowClient, &groupsStruct);
+    rc = aws_iot_shadow_register_delta(&shadowClient, &groupStruct);
     if(SUCCESS != rc) {
         IOT_ERROR("Shadow Register Delta Error");
     }
@@ -745,13 +696,13 @@ void *shadowRun(void *threadid) { //IoT_Error_t
         rc = aws_iot_shadow_init_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // Initialize the JSON document with Shadow
         if(SUCCESS == rc) {
             rc = aws_iot_shadow_add_reported(JsonDocumentBuffer, sizeOfJsonDocumentBuffer, 7, // Add the reported section of the JSON document of jsonStruct_t.
-                                             &onlineState, &customerStruct, &locationStruct, &idStruct, &connectionStruct, &groupsStruct, &channelsStruct);
+                                             &onlineState, &customerStruct, &locationStruct, &idStruct, &connectionStruct, &groupStruct, &channelsStruct);
             if(SUCCESS == rc) {
                 rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // This function will automatically increment the client token every time this function is called.
                 if(SUCCESS == rc) {
                     IOT_INFO("Update Shadow: %s", JsonDocumentBuffer);
                     rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer, // This function is the one used to perform an Update action to a Thing Name's Shadow.
-                                               ShadowUpdateStatusCallback, NULL, 30, true);
+                                               ShadowUpdateStatusCallback, NULL, 4, true);
 
                 }
             }
@@ -772,12 +723,12 @@ void *shadowRun(void *threadid) { //IoT_Error_t
 */
 
 //      *receivedSettings[0] = 0;
-        sleep(3);
+        sleep(1);
     } // end of while
 
 
 
-    IOT_INFO("Disconnecting shadow");
+    IOT_INFO("Disconnecting");
     rc = aws_iot_shadow_disconnect(&shadowClient); // This will close the underlying TCP connection, MQTT connection will also be closed
 
     if(SUCCESS != rc) {
@@ -943,10 +894,10 @@ int main(int argc, char **argv) {
     pthread_create (&pThreadShadow, NULL, shadowRun, (void *)1);
 
     // loop and publish
-	while(1) {
+	while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
 
         //Max time the yield function will wait for read messages
-        rc = aws_iot_mqtt_yield(&mqttClient, 200);
+        rc = aws_iot_mqtt_yield(&mqttClient, 100);
         if(NETWORK_ATTEMPTING_RECONNECT == rc) {
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
@@ -993,7 +944,11 @@ int main(int argc, char **argv) {
 
 
 
-    IOT_INFO("Disconnecting because of main");
+    IOT_INFO("Disconnecting");
+    rc = aws_iot_shadow_disconnect(&shadowClient); // This will close the underlying TCP connection, MQTT connection will also be closed
 
+    if(SUCCESS != rc) {
+        IOT_ERROR("Disconnect error %d", rc);
+    }
 	return rc;
 }

@@ -87,7 +87,7 @@ ptree readJSON(string inputstring) {
 //        pthread_mutex_lock(&errorMutex);
 //        ::readJSONerror = -1;
 //        pthread_mutex_unlock(&errorMutex);
-        cout << "ERROR readJSON" << "\n";
+        cout << "ERROR readJSON";
     }
 
     return pt;
@@ -163,21 +163,18 @@ void onlineState_Callback(const char *pJsonString, uint32_t JsonStringDataLen, j
         IOT_INFO("Online state changed to %d", *(bool *) (pContext->pData));
     }
 }
-
-
-char* myStringCopyAusnahme(char* dest, const char* source){
+char * MyStringCpyAusnahme(char *dest, const char *source, const char ausnme){
 
     int i, idx=0;
+
     for(i=0; i<=strlen(source); i++, idx++){
-        if(source[i] != '\\'){      // überprüfung ob zeichen aus bei source[i] ungleich der ausnahme
-            dest[idx]=source[i];// wenn ja, dann kopiere
-        }
-        else{                // wenn nicht
+        if(source[i]!=ausnme) // überprüfung ob zeichen aus bei source[i] ungleich der ausnahme
+            dest[idx]=source[i]; // wenn ja, dann kopiere
+        else                // wenn nicht
             idx--;           // reduziere idx um lücke in dest zu schliessen
-        }
     }
 
-    return dest;
+    return dest; // muss nicht sein, hab mir diesen stil vom prof. abgeschaut =b
 }
 
 
@@ -186,89 +183,75 @@ void channels_Callback(const char *pJsonString, uint32_t JsonStringDataLen, json
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
 
-    char pData [10000];
+    char pData [1000];
     sprintf(pData, "%s", (char*)pContext->pData);
-    char dest [10000];
+    char pDataOut [1000];
 
 
-    myStringCopyAusnahme(dest, pData);
+    char array[] = "Dies\\ist\\ein\\Test";
+    char array2[1000];
+    int i = 0;
+    int j = 0;
+    while ( array[i] != '\0')
+    {
+        if ( array[i] != '\\' )
+        {
+            array2[j] = array[i];
+            i++;
+            j++;
+        }
+        i++;
+    }
+
+    printf("\n%s%s\n", "***** Output array ***** ",array);
 
 
-//
-//    printf("\n%s%s\n", "***** Output channels pContext->pData ***** ",(char*)pContext->pData);
-//
-//    printf("\n%s%s\n", "***** Output dest ***** ",dest);
-
-
-    char jsonToRead [10000];
-    sprintf(jsonToRead, "%s", "{\"channels\":");
-
-    strcat(jsonToRead, dest);
-    strcat(jsonToRead, "}");
-
-//    printf("\n%s%s\n", "***** Output jsonToRead ***** ",jsonToRead);
+    printf("\n%s%s\n", "***** Output channels pContext->pData ***** ",(char*)pContext->pData);
 
 
     ptree pt;
-    pt = readJSON(jsonToRead);
+    pt = readJSON((char*)pContext->pData);
 
 
+
+//    pt = readJSON("{\"channels\":[{\"name\":\"10\", \"subscribed\":true},{\"name\":\"11\", \"subscribed\":false},{\"name\":\"12\", \"subscribed\":true}]}");
+    //    pt = readJSON("{\"channels\":[{\"name\":\"10\", \"subscribed\":true},{\"name\":\"11\", \"subscribed\":false},{\"name\":\"12\", \"subscribed\":true}]}");
+
+
+//    cout << *(string *)pContext->pData << endl;
+//    cout << "channels_callback called" << endl;
+        //pt = readJSON(castToString(*(void *)pContext->pData, sizeof(pContext->pData)));
+
+/*
     BOOST_FOREACH(const ptree::value_type &v, pt.get_child("channels")) {
 
                     if (v.second.get<string>("subscribed").compare("true") == 0){
 
-                        const char * channelNameTrue = v.second.get<string>("name").c_str();
+                        IOT_INFO("Subscribing %s", v.second.get<string>("name"));
+                        const char * c = v.second.get<string>("name").c_str();
 
-                        IOT_INFO("Subscribing %s", channelNameTrue);
-                        aws_iot_mqtt_unsubscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue));
-                        sleep(1);
-                        rc = aws_iot_mqtt_subscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue), QOS0, iot_subscribe_callback_handler, NULL);
-                        sleep(1);
-
-                        while(SUCCESS != rc) {
-                            IOT_ERROR("error subscribing, repeating... : %d ", rc);
-                            aws_iot_mqtt_unsubscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue));
-                            sleep(1);
-                            rc = aws_iot_mqtt_subscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue), QOS0, iot_subscribe_callback_handler, NULL);
-                            sleep(1);
-
-                        }
-
-
-/*                        if(SUCCESS != rc) {
-                            IOT_ERROR("error subscribing, repeating... : %d ", rc);
-//                            sleep(2);
-//                            aws_iot_mqtt_unsubscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue));
-                            sleep(3);
-                            rc = aws_iot_mqtt_subscribe(&mqttClient, channelNameTrue, strlen(channelNameTrue), QOS0, iot_subscribe_callback_handler, NULL);
-
-                            if(SUCCESS != rc) {
-                                IOT_ERROR("final error subscribing : %d ", rc);
-                            }
-
-
-                        }*/
-
-                    }
-
-                        else if (v.second.get<string>("subscribed").compare("false") == 0){
-
-                            const char * channelNameFalse = v.second.get<string>("name").c_str();
-
-                            IOT_INFO("Unsubscribing %s", channelNameFalse);
-                            rc = aws_iot_mqtt_unsubscribe(&mqttClient, channelNameFalse, strlen(channelNameFalse));
-                            sleep(1);
+                        rc = aws_iot_mqtt_subscribe(&mqttClient, c, 10, QOS0, iot_subscribe_callback_handler, NULL);
 
                         if(SUCCESS != rc) {
+                            IOT_ERROR("Error subscribing : %d ", rc);
+                    }
+                    else if (v.second.get<string>("subscribed").compare("false") == 0){
+
+                            IOT_INFO("Unsubscribing %s", v.second.get<string>("name"));
+                            const char * d = v.second.get<string>("name").c_str();
+
+                            rc = aws_iot_mqtt_unsubscribe(&mqttClient, c, 10);
+
+                            if(SUCCESS != rc) {
                                 IOT_ERROR("Error unsubscribing : %d ", rc);
                             }
+                        }
                     }
-
 
                     // v.first is the name of the child.
                     // v.second is the child tree.
                 }
-
+*/
 }
 
 void groups_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
@@ -751,7 +734,7 @@ void *shadowRun(void *threadid) { //IoT_Error_t
                 if(SUCCESS == rc) {
                     IOT_INFO("Update Shadow: %s", JsonDocumentBuffer);
                     rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer, // This function is the one used to perform an Update action to a Thing Name's Shadow.
-                                               ShadowUpdateStatusCallback, NULL, 30, true);
+                                               ShadowUpdateStatusCallback, NULL, 4, true);
 
                 }
             }
@@ -772,12 +755,12 @@ void *shadowRun(void *threadid) { //IoT_Error_t
 */
 
 //      *receivedSettings[0] = 0;
-        sleep(3);
+        sleep(1);
     } // end of while
 
 
 
-    IOT_INFO("Disconnecting shadow");
+    IOT_INFO("Disconnecting");
     rc = aws_iot_shadow_disconnect(&shadowClient); // This will close the underlying TCP connection, MQTT connection will also be closed
 
     if(SUCCESS != rc) {
@@ -943,10 +926,10 @@ int main(int argc, char **argv) {
     pthread_create (&pThreadShadow, NULL, shadowRun, (void *)1);
 
     // loop and publish
-	while(1) {
+	while(NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc) {
 
         //Max time the yield function will wait for read messages
-        rc = aws_iot_mqtt_yield(&mqttClient, 200);
+        rc = aws_iot_mqtt_yield(&mqttClient, 100);
         if(NETWORK_ATTEMPTING_RECONNECT == rc) {
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
@@ -993,7 +976,11 @@ int main(int argc, char **argv) {
 
 
 
-    IOT_INFO("Disconnecting because of main");
+    IOT_INFO("Disconnecting");
+    rc = aws_iot_shadow_disconnect(&shadowClient); // This will close the underlying TCP connection, MQTT connection will also be closed
 
+    if(SUCCESS != rc) {
+        IOT_ERROR("Disconnect error %d", rc);
+    }
 	return rc;
 }
