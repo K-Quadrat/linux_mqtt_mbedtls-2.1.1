@@ -116,15 +116,14 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
  */
 int runCommand(char* in) {
 
-    char command [10000];
+    char thisIn [100];
     char buffer [10000];
-    sprintf(command, "%s", in);
+    sprintf(thisIn, "%s", in);
     char out [10000];
 
     char delimiter[] = ";";
     char *ptr;
 
-/*
     int32_t i = 0;
     char commandAndOptions[100][10];
 
@@ -139,10 +138,9 @@ int runCommand(char* in) {
         ptr = strtok(NULL, delimiter);
     }
 
-*/
 
+    FILE *fp;
 
-/*
     char blank[] = " ";
 
     char commandRun[80];
@@ -150,12 +148,10 @@ int runCommand(char* in) {
     strcpy(commandRun, commandAndOptions[0]);
     strcat(commandRun, blank);
     strcat(commandRun, commandAndOptions[1]);
-*/
 
-    FILE *fp;
 
     /* Open the command for reading. */
-    fp = popen(command, "r");
+    fp = popen(commandRun, "r");
     if (fp == NULL) {
         printf("Failed to run command\n" );
         exit(1);
@@ -175,8 +171,8 @@ int runCommand(char* in) {
 
     pclose(fp); // close
 
-    printf("%s\n", command);
-    printf("%s\n", out);
+    printf("%s\n", commandRun);
+//    printf("%s\n", out);
 
 
     return 1;
@@ -360,25 +356,11 @@ void groups_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonSt
     IOT_UNUSED(JsonStringDataLen);
     IoT_Error_t rc = FAILURE;
 
-    char pData [10000];
-    sprintf(pData, "%s", (char*)pContext->pData);
-    char dest [10000];
-
-
-    myStringCopyAusnahme(dest, pData);
-
-
-    char jsonToRead [10000];
-    sprintf(jsonToRead, "%s", "{\"groups\":");
-
-    strcat(jsonToRead, dest);
-    strcat(jsonToRead, "}");
+    printf("\n%s%s\n", "***** Output groups pContext->pData ***** ",(char*)pContext->pData);
 
     ptree pt;
-    pt = readJSON(jsonToRead);
+    pt = readJSON((char*)pContext->pData);
 
-    printf("\n%s%s\n", "***** Output groups pContext->pData ***** ",(char*)pContext->pData);
-    printf("\n%s%s\n", "***** Output groups jsonToRead ***** ", jsonToRead);
 
 }
 
