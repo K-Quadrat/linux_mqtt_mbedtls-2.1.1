@@ -22,6 +22,7 @@
 #include "boost/property_tree/ptree.hpp"
 #include "boost/property_tree/json_parser.hpp"
 #include <boost/foreach.hpp>
+#include <thread>         // std::thread
 
 
 
@@ -38,7 +39,7 @@ using namespace boost::property_tree;
 
 AWS_IoT_Client mqttClient;
 AWS_IoT_Client shadowClient;
-char receivedSettings[3][1000]; // 1. Number of topics, 3. Playload
+//char receivedSettings[3][1000]; // 1. Number of topics, 3. Playload
 
 uint8_t numPubs = 5;
 
@@ -111,6 +112,74 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
 
 
 /**
+ * @brief Run command to run command with options
+ */
+int runCommand(char* in) {
+
+    char thisIn [100];
+    char buffer [10000];
+    sprintf(thisIn, "%s", in);
+    char out [10000];
+
+    char delimiter[] = ",;";
+    char *ptr;
+
+    int32_t i = 0;
+    char commandAndOptions[100][10];
+
+// initialisieren und ersten Abschnitt erstellen
+    ptr = strtok(thisIn, delimiter);
+
+    while(ptr != NULL) {
+        sprintf(commandAndOptions[i], "%s", ptr);
+        i++;
+
+        // naechsten Abschnitt erstellen
+        ptr = strtok(NULL, delimiter);
+    }
+
+
+    FILE *fp;
+
+    char blank[] = " ";
+
+    char commandRun[80];
+
+    strcpy(commandRun, commandAndOptions[0]);
+    strcat(commandRun, blank);
+    strcat(commandRun, commandAndOptions[1]);
+
+
+    /* Open the command for reading. */
+    fp = popen(commandRun, "r");
+    if (fp == NULL) {
+        printf("Failed to run command\n" );
+        exit(1);
+    }
+
+
+    /* Read the output a line at a time - output to out. */
+    *out = 0; // reset output variable
+
+    while (fgets(buffer, sizeof(buffer)-1, fp) != NULL) {
+
+        if (strlen(out) == 0) {
+            strcpy(out, buffer);
+        } else
+            strcat(out, buffer);
+    }
+
+    pclose(fp); // close
+
+    printf("%s\n", commandRun);
+    printf("%s\n", out);
+
+
+    return 1;
+}
+
+
+/**
  * @brief CallbackHandler for Subscribe to a topic
  */
 void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
@@ -120,19 +189,30 @@ void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
     char thisTopicName[100];
     char thisPayload[params->payloadLen];
 
-    IOT_INFO("Subscribe callback");
+    IOT_INFO("Subscribe callback, i'm here");
     IOT_INFO("%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char*)params->payload);
+
+/*
+
+    printf("***%.*s***", topicNameLen, topicName);
 
     sprintf(thisTopicName, "%.*s", topicNameLen, topicName);
 
-    if(strcmp(SUBTOPIC1, thisTopicName) == 0){
-        sprintf(receivedSettings[0], "%.*s", (int) params->payloadLen, (char*)params->payload);
+    sprintf(receivedSettings[0], "%.*s", (int) params->payloadLen, (char*)params->payload);
+*/
 
-        //debug
-        printf("%s\n", "1");
-        printf("%s\n", receivedSettings[0]);
+    char receivedSettings[10000];
+    sprintf(receivedSettings, "%.*s", (int) params->payloadLen, (char*)params->payload);
 
-    }
+    std::thread threadRunCommand (runCommand,receivedSettings);
+    threadRunCommand.detach();
+
+/*
+    //debug
+    printf("%s\n", "1");
+    printf("%s\n", receivedSettings[0]);
+
+
     else if(strcmp(SUBTOPIC2, thisTopicName) == 0){
         sprintf(receivedSettings[1], "%.*s", (int) params->payloadLen, (char*)params->payload);
 
@@ -147,7 +227,7 @@ void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
         //debug
         printf("%s\n", "3");
         printf("%s\n", receivedSettings[2]);
-    }
+    }*/
 }
 
 
@@ -312,68 +392,6 @@ void thirdMeasurement_Callback(const char *pJsonString, uint32_t JsonStringDataL
         }
     }
 }
-
-
-/**
- * @brief Run command to run command with options
- */
-char* runCommand(char* in, char* out) {
-
-    char thisIn [100];
-    char buffer [10000];
-    sprintf(thisIn, "%s", in);
-
-    char delimiter[] = ",;";
-    char *ptr;
-
-    int32_t i = 0;
-    char commandAndOptions[100][10];
-
-// initialisieren und ersten Abschnitt erstellen
-    ptr = strtok(thisIn, delimiter);
-
-    while(ptr != NULL) {
-        sprintf(commandAndOptions[i], "%s", ptr);
-        i++;
-
-        // naechsten Abschnitt erstellen
-        ptr = strtok(NULL, delimiter);
-    }
-
-
-    FILE *fp;
-
-    char blank[] = " ";
-
-    char commandRun[80];
-
-    strcpy(commandRun, commandAndOptions[0]);
-    strcat(commandRun, blank);
-    strcat(commandRun, commandAndOptions[1]);
-
-
-    /* Open the command for reading. */
-    fp = popen(commandRun, "r");
-    if (fp == NULL) {
-        printf("Failed to run command\n" );
-        exit(1);
-    }
-
-    /* Read the output a line at a time - output to out. */
-
-    while (fgets(buffer, sizeof(buffer)-1, fp) != NULL) {
-
-        if (strlen(out) == 0) {
-            strcpy(out, buffer);
-        } else
-            strcat(out, buffer);
-    }
-
-    pclose(fp); // close
-
-    return out;
-}
-
 
 
 /**
@@ -961,11 +979,7 @@ int main(int argc, char **argv) {
 */
 
 
-//        pthread_join (pThreadShadow, NULL);
-
-
-
-        for(i=0; i<sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) { //<=
+/*        for(i=0; i<sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) { //<=
 //        for(i=0; i<=2; i++) {
 //            printf("%s %zu\n", "i=", i);
 
@@ -986,7 +1000,7 @@ int main(int argc, char **argv) {
                 *receivedSettings[i] = 0;
                 *runCommandOut = 0;
             }
-        }
+        }*/
 
         sleep(1);
     } // end of while
