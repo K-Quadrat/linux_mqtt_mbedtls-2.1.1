@@ -170,44 +170,28 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
  */
 int runCommand(char* in) {
 
+    char jsonToRead [10000];
     char command [10000];
+
     char buffer [10000];
-    sprintf(command, "%s", in);
+    sprintf(jsonToRead, "%s", in);
     char out [10000];
 
-    char delimiter[] = ";";
-    char *ptr;
-
-/*
-    int32_t i = 0;
-    char commandAndOptions[100][10];
-
-// initialisieren und ersten Abschnitt erstellen
-    ptr = strtok(thisIn, delimiter);
-
-    while(ptr != NULL) {
-        sprintf(commandAndOptions[i], "%s", ptr);
-        i++;
-
-        // naechsten Abschnitt erstellen
-        ptr = strtok(NULL, delimiter);
-    }
-
-*/
+    ///////////////////////////////////////////
+    ptree pt;
+    pt = readJSON(jsonToRead);
 
 
-/*
-    char blank[] = " ";
 
-    char commandRun[80];
 
-    strcpy(commandRun, commandAndOptions[0]);
-    strcat(commandRun, blank);
-    strcat(commandRun, commandAndOptions[1]);
-*/
+//////////////////////////////////////////////////////
+
+
+
+
+
 
     FILE *fp;
-
     /* Open the command for reading. */
     fp = popen(command, "r");
     if (fp == NULL) {
@@ -231,6 +215,10 @@ int runCommand(char* in) {
 
     printf("%s\n", command);
     printf("%s\n", out);
+
+
+
+
 
     //////////////////////////////
 
