@@ -34,7 +34,7 @@ TLS_LIB_DIR = $(MBEDTLS_DIR)/library
 TLS_INCLUDE_DIR = -I $(MBEDTLS_DIR)/include
 EXTERNAL_LIBS += -L$(TLS_LIB_DIR)
 LD_FLAG += -Wl,-rpath,$(TLS_LIB_DIR)
-LD_FLAG += -ldl $(TLS_LIB_DIR)/libmbedtls.a $(TLS_LIB_DIR)/libmbedcrypto.a $(TLS_LIB_DIR)/libmbedx509.a -lpthread
+LD_FLAG += -ldl $(TLS_LIB_DIR)/libmbedtls.a $(TLS_LIB_DIR)/libmbedcrypto.a $(TLS_LIB_DIR)/libmbedx509.a -lpthread -lmysqlclient
 
 #Aggregate all include and src directories
 INCLUDE_ALL_DIRS += $(IOT_INCLUDE_DIRS)
@@ -53,7 +53,7 @@ LOG_FLAGS += -DENABLE_IOT_ERROR
 COMPILER_FLAGS += $(LOG_FLAGS)
 #If the processor is big endian uncomment the compiler flag
 #COMPILER_FLAGS += -DREVERSED
-COMPILER_FLAGS += -std=c++0x
+COMPILER_FLAGS += -std=c++11
 
 MBED_TLS_MAKE_CMD = $(MAKE) -C $(MBEDTLS_DIR)
 

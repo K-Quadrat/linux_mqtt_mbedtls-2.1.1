@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <iostream>
 #include <map>
+#include <vector>
 
 
 #include "aws_iot_config.h"
@@ -23,6 +24,9 @@
 #include "boost/property_tree/json_parser.hpp"
 #include <boost/foreach.hpp>
 #include <thread>         // std::thread
+
+#include <mysql.cpp>
+#include <tool.cpp>
 
 
 
@@ -42,6 +46,56 @@ AWS_IoT_Client shadowClient;
 //char receivedSettings[3][1000]; // 1. Number of topics, 3. Playload
 
 uint8_t numPubs = 5;
+
+
+//! \brief
+//!	Replace Occurrences of oldStr with newStr
+void stringReplace(std::string& str, const std::string& oldStr, const std::string& newStr) {
+
+    size_t pos = 0;
+    while((pos = str.find(oldStr, pos)) != std::string::npos){
+        str.replace(pos, oldStr.length(), newStr);
+        pos += newStr.length();
+    }
+}
+
+
+string mapToJSON(map<string, string> myMap) {
+
+    ostringstream json;
+
+    json.str("");
+    json << "{";
+
+    bool first = true;
+
+    for (auto itmap=myMap.begin();itmap!=myMap.end();++itmap) {
+
+        //filter out table specific ids
+        if (!itmap->first.compare("binaryRun_id")) continue;
+        if (!itmap->first.compare("jobRun_id")) continue;
+        if (!itmap->first.compare("result_id")) continue;
+
+        if (!first) json << ",";
+        first = false;
+
+        json << "\"" << itmap->first << "\":";
+
+        CTool::stringReplace(itmap->second, "\n", "\\n");
+        CTool::stringReplace(itmap->second, "\r", "\\r");
+        CTool::stringReplace(itmap->second, "\b", "\\b");
+        CTool::stringReplace(itmap->second, "\t", "\\t");
+        CTool::stringReplace(itmap->second, "\f", "\\f");
+
+        json << "\"" << itmap->second << "\"";
+    }
+
+    json << "}";
+
+    return json.str();
+}
+
+
 
 
 string writeJSON(boost::property_tree::ptree const& pt) {
@@ -178,8 +232,36 @@ int runCommand(char* in) {
     printf("%s\n", command);
     printf("%s\n", out);
 
+    //////////////////////////////
 
-    return 1;
+
+    //instantiate Mysql dbhandler
+    CMysql::getInstance()->setDBParameters("localhost", "probe", "jens", "jens"); //::dbhost, ::dbname, ::dbuser, ::dbpassword
+
+
+    bool firstResult;
+
+//get associated Results
+    string resultJSON = "{";
+        string querystring = "SELECT * FROM `Result` WHERE test_id = 1";
+        vector<map<string, string>> resultVector = CMysql::getInstance()->select(querystring);
+
+        //iterate over result rows
+        for (auto itrs=resultVector.begin(); itrs!=resultVector.end(); ++itrs) {
+
+
+            if (!firstResult) resultJSON += ",";
+            firstResult = false;
+
+
+            resultJSON += mapToJSON(itrs[0]);
+        }
+
+        resultJSON += "}";
+
+
+
+        return 1;
 }
 
 
