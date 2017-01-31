@@ -42,10 +42,93 @@ using namespace boost::property_tree;
 
 
 AWS_IoT_Client mqttClient;
+IoT_Publish_Message_Params msg;
+
 AWS_IoT_Client shadowClient;
-//char receivedSettings[3][1000]; // 1. Number of topics, 3. Playload
+
+char pub1[100]; // Defines a string for the first topic to publish
+int pub1Len;
+
+char topicExitStatus[100]; // Defines a string for the second topic to publish
+int topicExitStatusLen;
+
+
+char resultJSONcharGlob[AWS_IOT_MQTT_TX_BUF_LEN];
 
 uint8_t numPubs = 5;
+
+
+
+
+/**
+ * @brief Filereader to read MAC address from the System
+ */
+
+char* getMacAddress(char* out) {
+    FILE *fp;
+    fp = fopen("/sys/class/net/eth0/address", "r");
+    if (fp == NULL) {
+        sprintf(out, "%s", "ERROR! Could not read the Mac address!");
+    } else {
+        sprintf(out, "%s", fgets(out, 50, fp));
+
+        size_t len = strlen(out);
+        if(len>0)
+            out[len-1] = 0;
+
+        fclose(fp);
+    }
+
+    return out;
+}
+
+
+
+/**
+ * @brief Default cert location
+ */
+char certDirectory[PATH_MAX + 1] = "../../../certs";
+
+/**
+ * @brief Default MQTT HOST URL is pulled from the aws_iot_config.h
+ */
+char HostAddress[255] = AWS_IOT_MQTT_HOST;
+
+/**
+ * @brief Default MQTT port is pulled from the aws_iot_config.h
+ */
+uint32_t port = AWS_IOT_MQTT_PORT;
+
+/**
+ * @brief This parameter will avoid infinite loop of publish and exit the program after certain number of publishes
+ */
+uint32_t publishCount = 0; // publishCount wird nicht gebraucht
+
+
+void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
+    IOT_WARN("MQTT Disconnect");
+    IoT_Error_t rc = FAILURE;
+
+    if(NULL == pClient) {
+        return;
+    }
+
+    IOT_UNUSED(data);
+
+    if(aws_iot_is_autoreconnect_enabled(pClient)) {
+        IOT_INFO("Auto Reconnect is enabled, Reconnecting attempt will start now");
+    } else {
+        IOT_WARN("Auto Reconnect not enabled. Starting manual reconnect...");
+        rc = aws_iot_mqtt_attempt_reconnect(pClient);
+        if(NETWORK_RECONNECTED == rc) {
+            IOT_WARN("Manual Reconnect Successful");
+        } else {
+            IOT_WARN("Manual Reconnect Failed - %d", rc);
+        }
+    }
+}
+
+
 
 
 //! \brief
@@ -75,6 +158,15 @@ string mapToJSON(map<string, string> myMap) {
         if (!itmap->first.compare("binaryRun_id")) continue;
         if (!itmap->first.compare("jobRun_id")) continue;
         if (!itmap->first.compare("result_id")) continue;
+
+        if (!itmap->first.compare("BinaryRun_timestamp_id")) continue;
+        if (!itmap->first.compare("JobRun_timestamp_id")) continue;
+        if (!itmap->first.compare("binary_id")) continue;
+        if (!itmap->first.compare("groupJob_id")) continue;
+        if (!itmap->first.compare("job_id")) continue;
+        if (!itmap->first.compare("unit")) continue;
+
+
 
         if (!first) json << ",";
         first = false;
@@ -165,6 +257,7 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
 }
 
 
+
 /**
  * @brief Run command to run command with options
  */
@@ -177,80 +270,114 @@ int runCommand(char* in) {
     sprintf(jsonToRead, "%s", in);
     char out [10000];
 
-    ///////////////////////////////////////////
     ptree pt;
     pt = readJSON(jsonToRead);
 
+    char cPayload[131000];
+
+    IoT_Error_t rc = FAILURE;
+
+    ::msg.qos = QOS1;
+    ::msg.payload = (void *) cPayload;
+    ::msg.isRetained = 0;
+
+
+    const char *commandChar = pt.get<string>("command").c_str();
+    const char *optionsChar = pt.get<string>("options").c_str();
+    const char *testidChar = pt.get<string>("testid").c_str();
+
+
+    strcpy(command, commandChar);
+    strcat(command, " ");
+    strcat(command, optionsChar);
+    strcat(command, " -testid ");
+    strcat(command, testidChar);
+
+
+    printf("\n***command: %s\n", command);
 
 
 
-//////////////////////////////////////////////////////
+    int exitStatus;
+    printf ("Executing command...\n");
+    exitStatus = system(command);
+
+    char exitStatusPub[100];
+    sprintf(exitStatusPub,"%s %d", "The value returned was:", exitStatus);
 
 
+    sprintf(cPayload,"%s", exitStatusPub);
 
+    msg.payloadLen = strlen(cPayload);
 
+    IOT_INFO("Publishing exit status %s", cPayload);
 
+    rc = aws_iot_mqtt_publish(&mqttClient, topicExitStatus, topicExitStatusLen, &msg);
+    sleep(1);
 
-    FILE *fp;
-    /* Open the command for reading. */
-    fp = popen(command, "r");
-    if (fp == NULL) {
-        printf("Failed to run command\n" );
-        exit(1);
+    while(SUCCESS != rc) {
+        IOT_ERROR("error publishing exit status, repeating... : %d ", rc);
+        rc = aws_iot_mqtt_publish(&mqttClient, topicExitStatus, topicExitStatusLen, &msg);
+        sleep(1);
     }
 
 
-    /* Read the output a line at a time - output to out. */
-    *out = 0; // reset output variable
-
-    while (fgets(buffer, sizeof(buffer)-1, fp) != NULL) {
-
-        if (strlen(out) == 0) {
-            strcpy(out, buffer);
-        } else
-            strcat(out, buffer);
-    }
-
-    pclose(fp); // close
-
-    printf("%s\n", command);
-    printf("%s\n", out);
 
 
-
-
-
-    //////////////////////////////
 
 
     //instantiate Mysql dbhandler
     CMysql::getInstance()->setDBParameters("localhost", "probe", "jens", "jens"); //::dbhost, ::dbname, ::dbuser, ::dbpassword
 
 
-    bool firstResult;
+    bool firstResult = true;
 
 //get associated Results
-    string resultJSON = "{";
-        string querystring = "SELECT * FROM `Result` WHERE test_id = 1";
-        vector<map<string, string>> resultVector = CMysql::getInstance()->select(querystring);
+    string resultJSON = "[";
+    string querystring = "SELECT * FROM `Result` WHERE test_id = "+ string(testidChar);
 
-        //iterate over result rows
-        for (auto itrs=resultVector.begin(); itrs!=resultVector.end(); ++itrs) {
+    cout << "\n querystring: " << querystring << "\n";
 
+    vector<map<string, string>> resultVector = CMysql::getInstance()->select(querystring);
 
-            if (!firstResult) resultJSON += ",";
-            firstResult = false;
-
-
-            resultJSON += mapToJSON(itrs[0]);
-        }
-
-        resultJSON += "}";
+    //iterate over result rows
+    for (auto itrs=resultVector.begin(); itrs!=resultVector.end(); ++itrs) {
 
 
+        if (!firstResult) resultJSON += ",";
+        firstResult = false;
 
-        return 1;
+
+        resultJSON += mapToJSON(itrs[0]);
+    }
+
+    resultJSON += "]";
+
+    const char * resultJSONchar = resultJSON.c_str();
+
+
+
+    sprintf(cPayload,"%s", resultJSONchar);
+
+    msg.payloadLen = strlen(cPayload);
+
+    IOT_INFO("\nPublishing payload:\n%s", cPayload);
+    printf("\n%s %zu %s\n", "Payload length:", strlen(cPayload), "Byte");
+    printf("%s %zu %s\n", "Max payload length:", sizeof(cPayload), "Byte");
+
+    rc = aws_iot_mqtt_publish(&mqttClient, pub1, pub1Len, &msg);
+    sleep(1);
+
+    while(SUCCESS != rc) {
+        IOT_ERROR("error publishing payload, repeating... : %d ", rc);
+        rc = aws_iot_mqtt_publish(&mqttClient, pub1, pub1Len, &msg);
+        sleep(1);
+    }
+
+    return 1;
 }
+
+
 
 
 /**
@@ -542,74 +669,6 @@ char* jsonParserMemInfo(char* out) {
 }
 
 
-/**
- * @brief Filereader to read MAC address from the System
- */
-
-char* getMacAddress(char* out) {
-    FILE *fp;
-    fp = fopen("/sys/class/net/eth0/address", "r");
-    if (fp == NULL) {
-        sprintf(out, "%s", "ERROR! Could not read the Mac address!");
-    } else {
-        sprintf(out, "%s", fgets(out, 50, fp));
-
-        size_t len = strlen(out);
-        if(len>0)
-            out[len-1] = 0;
-
-        fclose(fp);
-    }
-
-    return out;
-}
-
-
-
-/**
- * @brief Default cert location
- */
-char certDirectory[PATH_MAX + 1] = "../../../certs";
-
-/**
- * @brief Default MQTT HOST URL is pulled from the aws_iot_config.h
- */
-char HostAddress[255] = AWS_IOT_MQTT_HOST;
-
-/**
- * @brief Default MQTT port is pulled from the aws_iot_config.h
- */
-uint32_t port = AWS_IOT_MQTT_PORT;
-
-/**
- * @brief This parameter will avoid infinite loop of publish and exit the program after certain number of publishes
- */
-uint32_t publishCount = 0; // publishCount wird nicht gebraucht
-
-
-void disconnectCallbackHandler(AWS_IoT_Client *pClient, void *data) {
-	IOT_WARN("MQTT Disconnect");
-	IoT_Error_t rc = FAILURE;
-
-	if(NULL == pClient) {
-		return;
-	}
-
-	IOT_UNUSED(data);
-
-	if(aws_iot_is_autoreconnect_enabled(pClient)) {
-		IOT_INFO("Auto Reconnect is enabled, Reconnecting attempt will start now");
-	} else {
-		IOT_WARN("Auto Reconnect not enabled. Starting manual reconnect...");
-		rc = aws_iot_mqtt_attempt_reconnect(pClient);
-		if(NETWORK_RECONNECTED == rc) {
-			IOT_WARN("Manual Reconnect Successful");
-		} else {
-			IOT_WARN("Manual Reconnect Failed - %d", rc);
-		}
-	}
-}
-
 void parseInputArgsForConnectParams(int argc, char **argv) {
 	int opt;
 
@@ -897,6 +956,7 @@ void *shadowRun(void *threadid) { //IoT_Error_t
 
 
 int main(int argc, char **argv) {
+
 	bool infinitePublishFlag = true;
 
 	char rootCA[PATH_MAX + 1];
@@ -910,11 +970,6 @@ int main(int argc, char **argv) {
     char memInfo[5000];
     char runCommandOut[10000];
 
-    char pub1[100]; // Defines a string for the first topic to publish
-    char topicHardwareInfo[100]; // Defines a string for the second topic to publish
-
-    int pub1Len;
-    int topicHardwareInfoLen;
 
 	IoT_Error_t rc = FAILURE;
     pthread_t pThreadShadow;
@@ -935,7 +990,6 @@ int main(int argc, char **argv) {
 	IoT_Publish_Message_Params paramsQOS0;
 	IoT_Publish_Message_Params paramsQOS1;
 */
-    IoT_Publish_Message_Params msg;
 
 
 	parseInputArgsForConnectParams(argc, argv);
@@ -1020,15 +1074,15 @@ int main(int argc, char **argv) {
  * @brief Defines the topics with MAC address
  */
     sprintf(pub1, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"pub1");
-    sprintf(topicHardwareInfo, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"hardwareInfo");
+    sprintf(topicExitStatus, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"exitstatus");
 
     pub1Len = strlen(pub1);
-    topicHardwareInfoLen = strlen(topicHardwareInfo); // Length of the topic for aws_iot_mqtt_publish function
+    topicExitStatusLen = strlen(topicExitStatus); // Length of the topic for aws_iot_mqtt_publish function
 
 
     IOT_DEBUG("MAC address: %s", getMacAddress(macAddress));
     IOT_DEBUG("Topic1: %s", pub1);
-    IOT_DEBUG("Topic2: %s", topicHardwareInfo);
+    IOT_DEBUG("Topic2: %s", topicExitStatus);
     /**
 	paramsQOS0.qos = QOS0;
 	paramsQOS0.payload = (void *) cPayload;
@@ -1038,9 +1092,11 @@ int main(int argc, char **argv) {
 	paramsQOS1.payload = (void *) cPayload;
 	paramsQOS1.isRetained = 0;
 */
+/*
     msg.qos = QOS1;
     msg.payload = (void *) cPayload;
     msg.isRetained = 0;
+*/
 
 	if(publishCount != 0) {
 		infinitePublishFlag = false;
@@ -1053,42 +1109,33 @@ int main(int argc, char **argv) {
 
         //Max time the yield function will wait for read messages
         rc = aws_iot_mqtt_yield(&mqttClient, 200);
-        if(NETWORK_ATTEMPTING_RECONNECT == rc) {
+        /*if(NETWORK_ATTEMPTING_RECONNECT == rc) {
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
-        }
+        }*/
+//        printf("\n***********\n");
 
-
-/*
-        IOT_INFO("On Device: Online state %s", online ? "true" : "false");
-        IOT_INFO("On Device: First measurement activation state -> %s", firstMeasurementActivated ? "true" : "false");
-        IOT_INFO("On Device: Second measurement activation state -> %s", secondMeasurementActivated ? "true" : "false");
-        IOT_INFO("On Device: Third measurement activation state -> %s", thirdMeasurementActivated ? "true" : "false");
-*/
-
-
-/*        for(i=0; i<sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) { //<=
+//        for(i=0; i<sizeof(receivedSettings) / sizeof(receivedSettings[0]); i++) { //<=
 //        for(i=0; i<=2; i++) {
 //            printf("%s %zu\n", "i=", i);
 
 
-                if (strlen(receivedSettings[i]) != 0){
-                printf("%s %zu\n", "Channel", i+1);
-                runCommand(receivedSettings[i], runCommandOut);
-                printf("%s\n", runCommandOut);
+/*
+                if (strlen(resultJSONcharGlob) != 0){
 
-                if (strcmp(receivedSettings[i], "cat;/proc/meminfo") == 0){
-                    sprintf(cPayload,"%s", jsonParserMemInfo(runCommandOut));
+                    sprintf(cPayload,"%s", resultJSONcharGlob);
                     msg.payloadLen = strlen(cPayload);
-                    printf("%s %s%s %zu %s\n", "Payload length topic", pub1, ":", strlen(cPayload), "Byte");
+                    printf("%s %zu %s\n", "Payload length:", strlen(cPayload), "Byte");
                     rc = aws_iot_mqtt_publish(&mqttClient, pub1, pub1Len, &msg);
 
-                    printf("%s %zu %s\n\n", "Max payload length each topic:", sizeof(cPayload), "Byte");
-                }
-                *receivedSettings[i] = 0;
-                *runCommandOut = 0;
-            }
-        }*/
+                    printf("%s %zu %s\n\n", "Max payload length:", sizeof(cPayload), "Byte");
+
+                    *resultJSONcharGlob = 0;
+//                *receivedSettings[i] = 0;
+//                *runCommandOut = 0;
+
+        }
+*/
 
         sleep(1);
     } // end of while

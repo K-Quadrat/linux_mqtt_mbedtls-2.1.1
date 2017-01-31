@@ -9,50 +9,20 @@
 
 
 
-
-using namespace std;
-
-using namespace boost::property_tree;
-//char outputstring[100];
-
-string mapToJSON(map<string, string> myMap) {
-
-    ostringstream json;
-
-    json.str("");
-    json << "{";
-
-    bool first = true;
-
-    for (auto itmap=myMap.begin();itmap!=myMap.end();++itmap) {
-
-        //filter out table specific ids
-        if (!itmap->first.compare("binaryRun_id")) continue;
-        if (!itmap->first.compare("jobRun_id")) continue;
-        if (!itmap->first.compare("result_id")) continue;
-
-        if (!first) json << ",";
-        first = false;
-
-        json << "\"" << itmap->first << "\":";
-
-        CTool::stringReplace(itmap->second, "\n", "\\n");
-        CTool::stringReplace(itmap->second, "\r", "\\r");
-        CTool::stringReplace(itmap->second, "\b", "\\b");
-        CTool::stringReplace(itmap->second, "\t", "\\t");
-        CTool::stringReplace(itmap->second, "\f", "\\f");
-
-        json << "\"" << itmap->second << "\"";
-    }
-
-    json << "}";
-
-    return json.str();
-}
+/* system example : DIR */
+#include <stdio.h>      /* printf */
+#include <stdlib.h>     /* system, NULL, EXIT_FAILURE */
 
 
 
-int main()
+int main ()
 {
+    int i;
+    printf ("Checking if processor is available...");
+    if (system(NULL)) puts ("Ok");
+    else exit (EXIT_FAILURE);
+    printf ("Executing command DIR...\n");
+    i=system ("ls");
+    printf ("The value returned was: %d.\n",i);
     return 0;
 }
