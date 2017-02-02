@@ -34,9 +34,14 @@ extern "C" {
 
 const ShadowInitParameters_t ShadowInitParametersDefault = {(char *) AWS_IOT_MQTT_HOST, AWS_IOT_MQTT_PORT, NULL, NULL,
 															NULL, false, NULL};
+/*
 
 const ShadowConnectParameters_t ShadowConnectParametersDefault = {(char *) AWS_IOT_MY_THING_NAME,
 																  (char *) AWS_IOT_MQTT_CLIENT_ID, 0};
+*/
+
+const ShadowConnectParameters_t ShadowConnectParametersDefault = {(char *) NULL,
+																  (char *) NULL, 0};
 
 void aws_iot_shadow_reset_last_received_version(void) {
 	shadowJsonVersionNum = 0;

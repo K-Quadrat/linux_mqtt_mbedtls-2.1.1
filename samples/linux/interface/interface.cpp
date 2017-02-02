@@ -40,6 +40,9 @@ using namespace std;
 using namespace boost::property_tree;
 
 
+char probe_id[50];    // AWS_IOT_MY_THING_NAME
+char sub_pub_id[50];  // AWS_IOT_MQTT_CLIENT_ID
+char shadow_id[50];   // AWS_IOT_THING_CLIENT_ID
 
 AWS_IoT_Client mqttClient;
 IoT_Publish_Message_Params msg;
@@ -58,6 +61,20 @@ char resultJSONcharGlob[AWS_IOT_MQTT_TX_BUF_LEN];
 uint8_t numPubs = 5;
 
 
+char* stringCopyExceptionDoublePoint(char* dest, const char* source){
+
+    int i, idx=0;
+    for(i=0; i<=strlen(source); i++, idx++){
+        if(source[i] != ':'){      // überprüfung ob zeichen aus bei source[i] ungleich der ausnahme
+            dest[idx]=source[i];// wenn ja, dann kopiere
+        }
+        else{                // wenn nicht
+            idx--;           // reduziere idx um lücke in dest zu schliessen
+        }
+    }
+
+    return dest;
+}
 
 
 /**
@@ -446,7 +463,7 @@ void onlineState_Callback(const char *pJsonString, uint32_t JsonStringDataLen, j
 }
 
 
-char* myStringCopyAusnahme(char* dest, const char* source){
+char* stringCopyException(char* dest, const char* source){
 
     int i, idx=0;
     for(i=0; i<=strlen(source); i++, idx++){
@@ -472,7 +489,7 @@ void channels_Callback(const char *pJsonString, uint32_t JsonStringDataLen, json
     char dest [10000];
 
 
-    myStringCopyAusnahme(dest, pData);
+    stringCopyException(dest, pData);
 
 
 //
@@ -562,7 +579,7 @@ void groups_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonSt
     char dest [10000];
 
 
-    myStringCopyAusnahme(dest, pData);
+    stringCopyException(dest, pData);
 
 
     char jsonToRead [10000];
@@ -823,9 +840,9 @@ void *shadowRun(void *threadid) { //IoT_Error_t
 /**
 * @brief Defining shadow connection parameters.
 */
-    shadowConnectParams.pMyThingName = AWS_IOT_MY_THING_NAME;
-    shadowConnectParams.pMqttClientId = AWS_IOT_THING_CLIENT_ID;
-    shadowConnectParams.mqttClientIdLen = (uint16_t) strlen(AWS_IOT_THING_CLIENT_ID);
+    shadowConnectParams.pMyThingName = probe_id;
+    shadowConnectParams.pMqttClientId = shadow_id;
+    shadowConnectParams.mqttClientIdLen = (uint16_t) strlen(shadow_id);
 
 
 /**
@@ -915,7 +932,7 @@ void *shadowRun(void *threadid) { //IoT_Error_t
                 rc = aws_iot_finalize_json_document(JsonDocumentBuffer, sizeOfJsonDocumentBuffer); // This function will automatically increment the client token every time this function is called.
                 if(SUCCESS == rc) {
                     IOT_INFO("Update Shadow: %s", JsonDocumentBuffer);
-                    rc = aws_iot_shadow_update(&shadowClient, AWS_IOT_MY_THING_NAME, JsonDocumentBuffer, // This function is the one used to perform an Update action to a Thing Name's Shadow.
+                    rc = aws_iot_shadow_update(&shadowClient, probe_id, JsonDocumentBuffer, // This function is the one used to perform an Update action to a Thing Name's Shadow.
                                                ShadowUpdateStatusCallback, NULL, 30, true);
 
                 }
@@ -957,7 +974,17 @@ void *shadowRun(void *threadid) { //IoT_Error_t
 
 int main(int argc, char **argv) {
 
-	bool infinitePublishFlag = true;
+    char macAddress[50];
+
+    stringCopyExceptionDoublePoint(::probe_id, getMacAddress(macAddress));
+
+    stringCopyExceptionDoublePoint(::sub_pub_id, getMacAddress(macAddress));
+    sprintf(::sub_pub_id,"%s%s", ::sub_pub_id, "subpub");
+
+    stringCopyExceptionDoublePoint(::shadow_id, getMacAddress(macAddress));
+    sprintf(::shadow_id,"%s%s", ::shadow_id, "shadow");
+
+    bool infinitePublishFlag = true;
 
 	char rootCA[PATH_MAX + 1];
 	char clientCRT[PATH_MAX + 1];
@@ -966,7 +993,6 @@ int main(int argc, char **argv) {
 	char cPayload[131000];
 
 	int32_t i = 0;
-    char macAddress[50];
     char memInfo[5000];
     char runCommandOut[10000];
 
@@ -1039,8 +1065,8 @@ int main(int argc, char **argv) {
 	clientConnectParams.keepAliveIntervalInSec = 10;
     clientConnectParams.isCleanSession = true;
     clientConnectParams.MQTTVersion = MQTT_3_1_1;
-    clientConnectParams.pClientID = AWS_IOT_MQTT_CLIENT_ID; // Or HostAddress
-    clientConnectParams.clientIDLen = (uint16_t) strlen(AWS_IOT_MQTT_CLIENT_ID);
+    clientConnectParams.pClientID = sub_pub_id; // Or HostAddress
+    clientConnectParams.clientIDLen = (uint16_t) strlen(sub_pub_id);
     clientConnectParams.isWillMsgPresent = false;
 
 /**
