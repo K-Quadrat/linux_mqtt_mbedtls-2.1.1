@@ -1096,7 +1096,7 @@ int main(int argc, char **argv) {
 	}
 
 
-/**
+/**l
  * @brief Defines the topics with MAC address
  */
     sprintf(pub1, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"pub1");
