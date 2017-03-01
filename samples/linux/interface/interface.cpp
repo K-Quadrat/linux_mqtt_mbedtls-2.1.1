@@ -45,8 +45,8 @@ IoT_Publish_Message_Params msg;
 
 AWS_IoT_Client shadowClient;
 
-char pub1[100]; // Defines a string for the first topic to publish
-int pub1Len;
+char data[100]; // Defines a string for the first topic to publish
+int dataLen;
 
 char topicExitStatus[100]; // Defines a string for the second topic to publish
 int topicExitStatusLen;
@@ -353,12 +353,12 @@ int runCommand(char* in) {
     printf("\n%s %zu %s\n", "Payload length:", strlen(cPayload), "Byte");
     printf("%s %zu %s\n", "Max payload length:", sizeof(cPayload), "Byte");
 
-    rc = aws_iot_mqtt_publish(&mqttClient, pub1, pub1Len, &msg);
+    rc = aws_iot_mqtt_publish(&mqttClient, data, dataLen, &msg);
     sleep(1);
 
     while(SUCCESS != rc) {
         IOT_ERROR("error publishing payload, repeating... : %d ", rc);
-        rc = aws_iot_mqtt_publish(&mqttClient, pub1, pub1Len, &msg);
+        rc = aws_iot_mqtt_publish(&mqttClient, data, dataLen, &msg);
         sleep(1);
     }
 
@@ -880,15 +880,15 @@ int main(int argc, char **argv) {
 /**
  * @brief Defines the topics with MAC address
  */
-    sprintf(pub1, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"pub1");
-    sprintf(topicExitStatus, "%s/%s/%s","sensorgruppe21",getMacAddress(macAddress),"exitstatus");
+    sprintf(data, "%s/%s/%s","probes",getMacAddress(macAddress),"data");
+    sprintf(topicExitStatus, "%s/%s/%s","probes",getMacAddress(macAddress),"exitstatus");
 
-    pub1Len = strlen(pub1);
+    dataLen = strlen(data);
     topicExitStatusLen = strlen(topicExitStatus); // Length of the topic for aws_iot_mqtt_publish function
 
 
     IOT_DEBUG("MAC address: %s", getMacAddress(macAddress));
-    IOT_DEBUG("Topic1: %s", pub1);
+    IOT_DEBUG("Topic1: %s", data);
     IOT_DEBUG("Topic2: %s", topicExitStatus);
 
     pthread_create (&pThreadShadow, NULL, shadowRun, (void *)1);
