@@ -316,7 +316,8 @@ int runCommand(char* in) {
 
 
     //instantiate Mysql dbhandler
-    CMysql::getInstance()->setDBParameters("localhost", "probe", "jens", "jens"); //::dbhost, ::dbname, ::dbuser, ::dbpassword
+//    CMysql::getInstance()->setDBParameters("localhost", "probe", "jens", "jens"); //::dbhost, ::dbname, ::dbuser, ::dbpassword
+    CMysql::getInstance()->setDBParameters(DBHOST, DBNAME, DBUSER, DBPASSWORD); // aws_iot_config.h
 
 
     bool firstResult = true;

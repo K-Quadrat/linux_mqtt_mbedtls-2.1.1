@@ -25,14 +25,16 @@
 // =================================================
 #define AWS_IOT_MQTT_HOST              "a33updbn0i9lsq.iot.eu-central-1.amazonaws.com" ///< Customer specific MQTT HOST. The same will be used for Thing Shadow
 #define AWS_IOT_MQTT_PORT              8883 ///< default port for MQTT/S
-//#define AWS_IOT_MQTT_CLIENT_ID         "001e063396b4" ///< MQTT client ID should be unique for every device
-//#define AWS_IOT_THING_CLIENT_ID        "odroid1thing" ///< Shadow client ID should be unique for every device
-//#define AWS_IOT_MY_THING_NAME 		   "001e063396b4" ///< Thing Name of the Shadow this device is associated with
 #define AWS_IOT_ROOT_CA_FILENAME       "root-CA.crt" ///< Root CA file name
 #define AWS_IOT_CERTIFICATE_FILENAME   "a23392f67a-certificate.pem.crt" ///< device signed certificate file name
 #define AWS_IOT_PRIVATE_KEY_FILENAME   "a23392f67a-private.pem.key" ///< Device private key filename
-#define AWS_IOT_TOPIC                  "sensorgruppe21/54:ee:75:45:a7:4a/topic_1" ///< First Topic
 // =================================================
+
+// MySQL Database
+#define DBHOST "localhost"
+#define DBNAME "probe"
+#define DBUSER "jens"
+#define DBPASSWORD "jens"
 
 // MQTT PubSub
 #define AWS_IOT_MQTT_TX_BUF_LEN 131072 ///< Any time a message is sent out through the MQTT layer. The message is copied into this buffer anytime a publish is done. This will also be used in the case of Thing Shadow
