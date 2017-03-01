@@ -2,130 +2,67 @@
 .prevent_execution:
 	exit 0
 
-#Set this to @ to keep the makefile quiet
-ifndef SILENCE
-	SILENCE = @ 
-endif
+CC = g++
 
-CC = gcc
-RM = rm
+#remove @ for no make command prints
+DEBUG = @
 
-DEBUG =
+APP_DIR = src
+APP_INCLUDE_DIRS += -I $(APP_DIR)
+APP_NAME = aws_iot_mqtt_measurement
+APP_SRC_FILES = $(APP_DIR)/$(APP_NAME).cpp
+APP_OUTPUT = bin/$(APP_NAME)
 
-#--- Inputs ----#
-COMPONENT_NAME = IotSdkC
+PLATFORM_DIR = platform/linux/mbedtls
+PLATFORM_COMMON_DIR = platform/linux/common
 
-ALL_TARGETS := build-cpputest
-ALL_TARGETS_CLEAN :=
+IOT_INCLUDE_DIRS += -I include
+IOT_INCLUDE_DIRS += -I external_libs/jsmn
+IOT_INCLUDE_DIRS += -I $(PLATFORM_COMMON_DIR)
+IOT_INCLUDE_DIRS += -I $(PLATFORM_DIR)
 
-CPPUTEST_USE_EXTENSIONS = Y
-CPP_PLATFORM = Gcc
-CPPUTEST_CFLAGS += -std=gnu99
-CPPUTEST_LDFLAGS += -lpthread
-CPPUTEST_CFLAGS += -D__USE_BSD
-CPPUTEST_USE_GCOV = Y
-
-#IoT client directory
-IOT_CLIENT_DIR = .
-
-APP_DIR = $(IOT_CLIENT_DIR)/tests/unit
-APP_NAME = aws_iot_sdk_unit_tests
-APP_SRC_FILES = $(shell find $(APP_DIR)/src -name '*.cpp')
-APP_SRC_FILES = $(shell find $(APP_DIR)/src -name '*.c')
-APP_INCLUDE_DIRS = -I $(APP_DIR)/include
-
-CPPUTEST_DIR = $(IOT_CLIENT_DIR)/external_libs/CppUTest
-
-# Provide paths for CppUTest to run Unit Tests otherwise build will fail
-ifndef CPPUTEST_INCLUDE
-    CPPUTEST_INCLUDE = $(CPPUTEST_DIR)/include
-endif
-
-ifndef CPPUTEST_BUILD_LIB
-    CPPUTEST_BUILD_LIB = $(CPPUTEST_DIR)
-endif
-
-CPPUTEST_LDFLAGS += -ldl $(CPPUTEST_BUILD_LIB)/libCppUTest.a
-
-PLATFORM_DIR = $(IOT_CLIENT_DIR)/platform/linux
-
-#MbedTLS directory
-TEMP_MBEDTLS_SRC_DIR = $(APP_DIR)/tls_mock
-TLS_LIB_DIR = $(TEMP_MBEDTLS_SRC_DIR)
-TLS_INCLUDE_DIR = -I $(TEMP_MBEDTLS_SRC_DIR)
-
-# Logging level control
-LOG_FLAGS += -DENABLE_IOT_DEBUG
-#LOG_FLAGS += -DENABLE_IOT_TRACE
-LOG_FLAGS += -DENABLE_IOT_INFO
-LOG_FLAGS += -DENABLE_IOT_WARN
-LOG_FLAGS += -DENABLE_IOT_ERROR
-COMPILER_FLAGS += $(LOG_FLAGS)
-
-EXTERNAL_LIBS += -L$(CPPUTEST_BUILD_LIB)
-
-#IoT client directory
-PLATFORM_COMMON_DIR = $(PLATFORM_DIR)/common
-
-IOT_INCLUDE_DIRS = -I $(PLATFORM_COMMON_DIR)
-IOT_INCLUDE_DIRS += -I $(IOT_CLIENT_DIR)/include
-IOT_INCLUDE_DIRS += -I $(IOT_CLIENT_DIR)/external_libs/jsmn
-
+IOT_SRC_FILES += $(shell find src/ -name '*.c')
+IOT_SRC_FILES += $(shell find external_libs/jsmn -name '*.c')
+IOT_SRC_FILES += $(shell find $(PLATFORM_DIR)/ -name '*.c')
 IOT_SRC_FILES += $(shell find $(PLATFORM_COMMON_DIR)/ -name '*.c')
-IOT_SRC_FILES += $(shell find $(IOT_CLIENT_DIR)/src/ -name '*.c')
-IOT_SRC_FILES += $(shell find $(IOT_CLIENT_DIR)/external_libs/jsmn/ -name '*.c')
+
+#TLS - mbedtls
+MBEDTLS_DIR = external_libs/mbedTLS
+TLS_LIB_DIR = $(MBEDTLS_DIR)/library
+TLS_INCLUDE_DIR = -I $(MBEDTLS_DIR)/include
+EXTERNAL_LIBS += -L$(TLS_LIB_DIR)
+LD_FLAG += -Wl,-rpath,$(TLS_LIB_DIR)
+LD_FLAG += -ldl $(TLS_LIB_DIR)/libmbedtls.a $(TLS_LIB_DIR)/libmbedcrypto.a $(TLS_LIB_DIR)/libmbedx509.a -lpthread -lmysqlclient
 
 #Aggregate all include and src directories
-INCLUDE_DIRS += $(IOT_INCLUDE_DIRS)
-INCLUDE_DIRS += $(APP_INCLUDE_DIRS)
-INCLUDE_DIRS += $(TLS_INCLUDE_DIR)
-INCLUDE_DIRS += $(CPPUTEST_INCLUDE)
-
-TEST_SRC_DIRS = $(APP_DIR)/src
+INCLUDE_ALL_DIRS += $(IOT_INCLUDE_DIRS)
+INCLUDE_ALL_DIRS += $(TLS_INCLUDE_DIR)
+INCLUDE_ALL_DIRS += $(APP_INCLUDE_DIRS)
 
 SRC_FILES += $(APP_SRC_FILES)
 SRC_FILES += $(IOT_SRC_FILES)
 
-COMPILER_FLAGS += -g
+# Logging level control
+LOG_FLAGS += -DENABLE_IOT_DEBUG
+LOG_FLAGS += -DENABLE_IOT_INFO
+LOG_FLAGS += -DENABLE_IOT_WARN
+LOG_FLAGS += -DENABLE_IOT_ERROR
+
 COMPILER_FLAGS += $(LOG_FLAGS)
-PRE_MAKE_CMDS = cd $(CPPUTEST_DIR) &&
-PRE_MAKE_CMDS += cmake CMakeLists.txt &&
-PRE_MAKE_CMDS += make &&
-PRE_MAKE_CMDS += cd - &&
-PRE_MAKE_CMDS += pwd &&
-PRE_MAKE_CMDS += cp -f $(CPPUTEST_DIR)/src/CppUTest/libCppUTest.a $(CPPUTEST_DIR)/libCppUTest.a &&
-PRE_MAKE_CMDS += cp -f $(CPPUTEST_DIR)/src/CppUTestExt/libCppUTestExt.a $(CPPUTEST_DIR)/libCppUTestExt.a
+#If the processor is big endian uncomment the compiler flag
+#COMPILER_FLAGS += -DREVERSED
+COMPILER_FLAGS += -std=c++11
 
-# Using TLS Mock for running Unit Tests
-MOCKS_SRC += $(APP_DIR)/tls_mock/aws_iot_tests_unit_mock_tls_params.c
-MOCKS_SRC += $(APP_DIR)/tls_mock/aws_iot_tests_unit_mock_tls.c
+MBED_TLS_MAKE_CMD = $(MAKE) -C $(MBEDTLS_DIR)
 
-ISYSTEM_HEADERS += $(IOT_ISYSTEM_HEADERS)
-CPPUTEST_CPPFLAGS +=  $(ISYSTEM_HEADERS)
-CPPUTEST_CPPFLAGS +=  $(LOG_FLAGS)
+PRE_MAKE_CMD = $(MBED_TLS_MAKE_CMD)
+MAKE_CMD = $(CC) $(SRC_FILES) $(COMPILER_FLAGS) -o $(APP_OUTPUT) $(LD_FLAG) $(EXTERNAL_LIBS) $(INCLUDE_ALL_DIRS)
 
-LCOV_EXCLUDE_PATTERN = "tests/unit/*"
-LCOV_EXCLUDE_PATTERN += "tests/integration/*"
-LCOV_EXCLUDE_PATTERN += "external_libs/*"
+all:
+	$(PRE_MAKE_CMD)
+	$(DEBUG)$(MAKE_CMD)
+	$(POST_MAKE_CMD)
 
-#use this section for running a specific group of tests, comment this to run all
-#ONLY FOR TESTING PURPOSE
-#COMMAND_LINE_ARGUMENTS += -g CommonTests
-#COMMAND_LINE_ARGUMENTS += -v
-
-build-cpputest:
-	$(PRE_MAKE_CMDS)
-
-include CppUTestMakefileWorker.mk
-
-.PHONY: run-unit-tests
-run-unit-tests: $(ALL_TARGETS)
-	@echo $(ALL_TARGETS)
-
-.PHONY: clean
 clean:
-	$(MAKE) -C $(CPPUTEST_DIR) clean
-	$(RM) -rf build_output
-	$(RM) -rf gcov
-	$(RM) -rf objs
-	$(RM) -rf testLibs
+	rm -f $(APP_DIR)/$(APP_NAME)
+	$(MBED_TLS_MAKE_CMD) clean
