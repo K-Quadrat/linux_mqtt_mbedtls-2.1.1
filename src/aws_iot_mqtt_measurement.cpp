@@ -36,9 +36,9 @@ using namespace std;
 using namespace boost::property_tree;
 
 
-char probe_id[50];    // AWS_IOT_MY_THING_NAME
-char sub_pub_id[50];  // AWS_IOT_MQTT_CLIENT_ID
-char shadow_id[50];   // AWS_IOT_THING_CLIENT_ID
+char probe_id[50];
+char sub_pub_id[50];
+char shadow_id[50];
 
 AWS_IoT_Client mqttClient;
 IoT_Publish_Message_Params msg;
@@ -103,7 +103,7 @@ char* getMacAddress(char* out) {
 /**
  * @brief Default cert location
  */
-char certDirectory[PATH_MAX + 1] = "certs";
+char certDirectory[PATH_MAX + 1] = "../certs";
 
 /**
  * @brief Default MQTT HOST URL is pulled from the aws_iot_config.h
@@ -117,9 +117,9 @@ uint32_t port = AWS_IOT_MQTT_PORT;
 
 
 /**
- * @brief Callback Handler for the case of a mqtt disconnect
+ * @brief Callback Handler for the case of a mqtt connection disconnect
  * @param mqttClient MQTT client
- * @param data pointer to the data (JSON value)
+ * @param data Pointer to the data (JSON value)
  */
 void disconnectCallbackHandlerMqtt(AWS_IoT_Client *mqttClient, void *data) {
     IOT_WARN("MQTT Client Disconnect");
@@ -145,9 +145,9 @@ void disconnectCallbackHandlerMqtt(AWS_IoT_Client *mqttClient, void *data) {
 }
 
 /**
- * @brief Callback Handler for the case of a device shadow disconnect
+ * @brief Callback Handler for the case of a device shadow connection disconnect
  * @param shadowClient Shadow Client
- * @param data pointer to the data (JSON value)
+ * @param data Pointer to the data (JSON value)
  */
 void disconnectCallbackHandlerShadow(AWS_IoT_Client *shadowClient, void *data) {
     IOT_WARN("MQTT Disconnect");
@@ -189,8 +189,8 @@ void stringReplace(std::string& str, const std::string& oldStr, const std::strin
 }
 
 /**
- * @brief Is called to process the measurement data from the mysql database in json
- * @param myMap vector map
+ * @brief Is called to process the measurement data from the MySQL database to JSON
+ * @param myMap Vector map
  * @return JSON string
  */
 string mapToJSON(map<string, string> myMap) {
@@ -239,9 +239,9 @@ string mapToJSON(map<string, string> myMap) {
 
 
 /**
- * @brief Convert JSON to property tree
- * @param inputstring input JSON
- * @return property tree
+ * @brief Read JSON into property tree
+ * @param inputstring Input JSON
+ * @return Property tree
  */
 ptree readJSON(string inputstring) {
     ptree pt;
@@ -281,9 +281,9 @@ void ShadowUpdateStatusCallback(const char *pThingName, ShadowActions_t action, 
 
 
  /**
-  * @brief Execute the measuring routine, get exit status and publish to exitstatus topic.
+  * @brief Execute the measurement routine, get exit status and publish to exitstatus topic.
   * Select measurement results from the MySQL database an publish to data topic.
-  * @param in Measuring routine
+  * @param in Measurement routine
   * @return 1
   */
 int runCommand(char* in) {
@@ -398,7 +398,7 @@ int runCommand(char* in) {
 
 
 /**
- * @brief CallbackHandler for Subscribe to a topic
+ * @brief Callback Handler for Subscribe to a topic. Call the runCommand for next processing.
  * @param topicName Topic name
  * @param topicNameLen Topic name length
  * @param params Message Parameters
@@ -421,20 +421,20 @@ void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
 }
 
 /**
- * @brief Removes all \\ character from a string
+ * @brief Removes all "\\" character from a string
  * @param dest Destination string
  * @param source Source string
- * @return String without \\ character
+ * @return String without "\\" character
  */
 char* stringCopyException(char* dest, const char* source){
 
     int i, idx=0;
     for(i=0; i<=strlen(source); i++, idx++){
-        if(source[i] != '\\'){      // überprüfung ob zeichen aus bei source[i] ungleich der ausnahme
-            dest[idx]=source[i];// wenn ja, dann kopiere
+        if(source[i] != '\\'){
+            dest[idx]=source[i];
         }
-        else{                // wenn nicht
-            idx--;           // reduziere idx um lücke in dest zu schliessen
+        else{
+            idx--;
         }
     }
 
@@ -443,8 +443,8 @@ char* stringCopyException(char* dest, const char* source){
 
 /**
  * @brief Is called when the device shadow update contains channel configuration
- * Check the channel configuration for contains channel names and if it set to true or false
- * Subscribe channel if is set to true, unsubscribe channel is is set to false
+ * Check the channels configuration for contains channel names and if it set to true or false
+ * Subscribe channel if is set to true, unsubscribe channel if is set to false
  * @param pContext Payload context
  */
 void channels_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonStruct_t *pContext) {
@@ -533,7 +533,11 @@ void groups_Callback(const char *pJsonString, uint32_t JsonStringDataLen, jsonSt
 }
 
 
-
+/**
+ * @brief Execute program with Special options, like host address, port, cert directory
+ * @param argc option
+ * @param argv parameter
+ */
 void parseInputArgsForConnectParams(int argc, char **argv) {
 	int opt;
 
@@ -551,15 +555,6 @@ void parseInputArgsForConnectParams(int argc, char **argv) {
 				strcpy(certDirectory, optarg);
 				IOT_DEBUG("cert root directory %s", optarg);
 				break;
-			case '?':
-				if(optopt == 'c') {
-					IOT_ERROR("Option -%c requires an argument.", optopt);
-				} else if(isprint(optopt)) {
-					IOT_WARN("Unknown option `-%c'.", optopt);
-				} else {
-					IOT_WARN("Unknown option character `\\x%x'.", optopt);
-				}
-				break;
 			default:
 				IOT_ERROR("Error in command line argument parsing");
 				break;
@@ -569,8 +564,7 @@ void parseInputArgsForConnectParams(int argc, char **argv) {
 }
 
 /**
- * Is executed as pthread
- * Includes the entire shadow synchronization
+ * Includes the entire shadow synchronization. Is executed as pthread.
  * @param threadid thread id
  */
 void *shadowRun(void *threadid) {
@@ -681,7 +675,7 @@ void *shadowRun(void *threadid) {
 
 
 /**
- * @brief Enable Auto Reconnect functionality.
+ * @brief Enable Auto Reconnect functionality for Device Shadow Connection.
  * #AWS_IOT_MQTT_MIN_RECONNECT_WAIT_INTERVAL
  * #AWS_IOT_MQTT_MAX_RECONNECT_WAIT_INTERVAL
  * @return IoT_Error_t Type defining successful/failed API call
@@ -865,7 +859,7 @@ int main(int argc, char **argv) {
 	}
 
 /**
- * @brief Enable Auto Reconnect functionality. Minimum and Maximum time of Exponential backoff are set in aws_iot_config.h
+ * @brief Enable Auto Reconnect functionality for MQTT connection. Minimum and Maximum time of Exponential backoff are set in aws_iot_config.h
  * #AWS_IOT_MQTT_MIN_RECONNECT_WAIT_INTERVAL
  * #AWS_IOT_MQTT_MAX_RECONNECT_WAIT_INTERVAL
  * @return IoT_Error_t Type defining successful/failed API call
